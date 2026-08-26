@@ -5,7 +5,7 @@
   to remove those too.
 #>
 $ErrorActionPreference = 'SilentlyContinue'
-$installDir = Join-Path $env:ProgramFiles 'CrestApps\SoftPhone'
+$installDir = Join-Path $env:ProgramFiles 'CrestApps\Soft Phone'
 
 Get-Process -Name 'CrestApps.SoftPhone' | Stop-Process -Force
 Start-Sleep -Seconds 1

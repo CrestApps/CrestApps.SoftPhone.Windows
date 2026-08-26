@@ -25,12 +25,12 @@ Intune admin center → **Apps → Windows → Add → Windows app (Win32)** →
 - **Install command:** `powershell.exe -ExecutionPolicy Bypass -File Install.ps1`
 - **Uninstall command:** `powershell.exe -ExecutionPolicy Bypass -File Uninstall.ps1`
 - **Install behavior:** System
-- **Detection rule (File):** Path `%ProgramFiles%\CrestApps\SoftPhone`, File
+- **Detection rule (File):** Path `%ProgramFiles%\CrestApps\Soft Phone`, File
   `CrestApps.SoftPhone.exe`, rule "File or folder exists". (Or use a version-based rule on
   the exe once you stamp production versions.)
 - **Assign** to your pilot user/device group.
 
-The installer puts the app in `%ProgramFiles%\CrestApps\SoftPhone`, adds a Start Menu entry,
+The installer puts the app in `%ProgramFiles%\CrestApps\Soft Phone`, adds a Start Menu entry,
 and adds an all-users Startup shortcut so it launches to the tray at each logon. The app's
 single-instance guard makes any duplicate autostart harmless.
 

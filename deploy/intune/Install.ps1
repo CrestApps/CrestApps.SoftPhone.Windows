@@ -13,7 +13,7 @@
 #>
 $ErrorActionPreference = 'Stop'
 $source = $PSScriptRoot
-$installDir = Join-Path $env:ProgramFiles 'CrestApps\SoftPhone'
+$installDir = Join-Path $env:ProgramFiles 'CrestApps\Soft Phone'
 $exeName = 'CrestApps.SoftPhone.exe'
 
 Write-Host "Installing Soft Phone to $installDir"
