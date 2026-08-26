@@ -27,6 +27,11 @@ concurrency:
 jobs:
   build:
     runs-on: windows-latest
+    # The signing secrets live in the "production" environment, so the build job must
+    # declare it to read them. If that environment has required-reviewer protection, the
+    # build will pause for approval — move the two SIGNING_* secrets to repository secrets
+    # (and drop this line) if you'd rather the build never wait.
+    environment: production
     env:
       # Job-level so step `if:` conditions can see whether signing is configured.
       SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
