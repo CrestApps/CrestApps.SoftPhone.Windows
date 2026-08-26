@@ -30,6 +30,12 @@ public sealed class ConnectionHost : IAsyncDisposable
     public event Action<Call, CallContext>? IncomingCall;
     public event Action<Call>? CallStateChanged;
 
+    /// <summary>Raised when a current-offer poll finds no pending inbound call (clear any popup).</summary>
+    public event Action? NoActiveOffer;
+
+    /// <summary>True once we've successfully fetched the tenant config (safe to poll the offer).</summary>
+    public bool IsConfigured => _config is not null;
+
     /// <param name="cookieProvider">
     /// Supplies the tenant cookies for a domain (in the app, reads them from the hidden
     /// WebView2 cookie source).
@@ -109,7 +115,7 @@ public sealed class ConnectionHost : IAsyncDisposable
         }
 
         // Catch an in-flight ring on connect (contract §B).
-        await CheckCurrentOfferAsync(ct);
+        await CheckCurrentOfferAsync(quiet: false, ct);
     }
 
     /// <summary>
@@ -118,7 +124,9 @@ public sealed class ConnectionHost : IAsyncDisposable
     /// hub event reaching this secondary connection — used on connect and whenever the phone
     /// window is minimized/backgrounded, so a ringing call always surfaces our popup.
     /// </summary>
-    public async Task CheckCurrentOfferAsync(CancellationToken ct = default)
+    private string? _lastPollError;
+
+    public async Task CheckCurrentOfferAsync(bool quiet = false, CancellationToken ct = default)
     {
         if (_domain is null) return;
         try
@@ -128,6 +136,7 @@ public sealed class ConnectionHost : IAsyncDisposable
             var config = _config ?? await configClient.FetchExtensionConfigAsync(_domain, ct);
             _config = config;
             var offer = await configClient.FetchCurrentOfferAsync(config.CurrentIncomingOfferUrl, ct);
+            _lastPollError = null;
             if (offer?.Call is not null)
             {
                 _log?.Invoke($"Background: current-offer ringing {offer.Call.CallId} from {offer.Call.From}.");
@@ -135,12 +144,18 @@ public sealed class ConnectionHost : IAsyncDisposable
             }
             else
             {
-                _log?.Invoke("Background: current-offer check — nothing ringing.");
+                if (!quiet) _log?.Invoke("Background: current-offer check — nothing ringing.");
+                NoActiveOffer?.Invoke();
             }
         }
         catch (Exception e)
         {
-            _log?.Invoke($"Background: current-offer check failed: {e.Message}");
+            // Log poll errors only when the message changes, to avoid flooding at the poll rate.
+            if (!quiet || e.Message != _lastPollError)
+            {
+                _lastPollError = e.Message;
+                _log?.Invoke($"Background: current-offer check failed: {e.Message}");
+            }
         }
     }
 

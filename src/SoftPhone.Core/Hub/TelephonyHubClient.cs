@@ -5,6 +5,18 @@ using SoftPhone.Core.Contract;
 
 namespace SoftPhone.Core.Hub;
 
+/// <summary>
+/// Reconnect forever (capped backoff) instead of the default give-up-after-~1-minute, so a
+/// dropped WebSocket recovers on its own. The tenant hub was observed closing the socket
+/// without a clean handshake; polling covers detection either way, but a live socket keeps
+/// CallStateChanged flowing for fast popup clearing.
+/// </summary>
+internal sealed class InfiniteRetryPolicy : IRetryPolicy
+{
+    public TimeSpan? NextRetryDelay(RetryContext retryContext) =>
+        TimeSpan.FromSeconds(Math.Min(30, Math.Pow(2, Math.Min(retryContext.PreviousRetryCount, 5))));
+}
+
 public sealed class HubClientCallbacks
 {
     public Action<Call, CallContext>? OnIncomingCall { get; init; }
@@ -69,7 +81,7 @@ public sealed class TelephonyHubClient : IAsyncDisposable
                     options.AccessTokenProvider = async () => await _options.AccessTokenProvider() ?? "";
                 }
             })
-            .WithAutomaticReconnect()
+            .WithAutomaticReconnect(new InfiniteRetryPolicy())
             .Build();
 
         conn.On<Call, CallContext>("IncomingCall", (call, context) =>

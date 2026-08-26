@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using SoftPhone.Core.Config;
 using SoftPhone.Core.Contract;
@@ -26,6 +27,12 @@ public partial class App : System.Windows.Application
 
     private ConnectionHost? _connection;
     private IncomingCallCoordinator? _coordinator;
+    private DispatcherTimer? _offerPoll;
+
+    // How often to poll the tenant's current-incoming-offer endpoint. The hub does not send
+    // IncomingCall to this secondary (background) connection, so polling is how we detect a
+    // ringing call reliably — independent of the (often flaky) WebSocket.
+    private static readonly TimeSpan OfferPollInterval = TimeSpan.FromSeconds(2.5);
 
     public App()
     {
@@ -74,6 +81,7 @@ public partial class App : System.Windows.Application
         _connection.StatusChanged += (s, d) => SetConnectionStatus(s, d);
         _connection.IncomingCall += (call, ctx) => Dispatcher.Invoke(() => _coordinator?.HandleIncoming(call, ctx));
         _connection.CallStateChanged += call => Dispatcher.Invoke(() => _coordinator?.HandleStateChanged(call));
+        _connection.NoActiveOffer += () => Dispatcher.Invoke(() => _coordinator?.OnNoActiveOffer());
 
         _coordinator = new IncomingCallCoordinator(this, new IncomingCallActions(
             Answer: AnswerCall,
@@ -92,6 +100,7 @@ public partial class App : System.Windows.Application
             OpenPhone();
 
         MaybeConnect();
+        StartOfferPolling();
 
         if (simulate)
             SimulateIncoming();
@@ -191,8 +200,25 @@ public partial class App : System.Windows.Application
 
     private async Task CheckOfferSafeAsync()
     {
-        try { if (_connection is not null) await _connection.CheckCurrentOfferAsync(); }
+        try { if (_connection is not null) await _connection.CheckCurrentOfferAsync(quiet: false); }
         catch (Exception ex) { Log.Error("current-offer check failed", ex); }
+    }
+
+    /// <summary>
+    /// Poll the tenant's current-incoming-offer endpoint on a timer so a ringing call surfaces
+    /// our popup even though the hub never sends IncomingCall to this background connection.
+    /// </summary>
+    private void StartOfferPolling()
+    {
+        _offerPoll?.Stop();
+        _offerPoll = new DispatcherTimer { Interval = OfferPollInterval };
+        _offerPoll.Tick += (_, _) =>
+        {
+            if (_connection is null) return;
+            if (!DomainHelper.IsValidDomain(ResolveSettings().Domain.Value)) return;
+            _ = _connection.CheckCurrentOfferAsync(quiet: true);
+        };
+        _offerPoll.Start();
     }
 
     private void AnswerCall(string callId)
@@ -269,6 +295,7 @@ public partial class App : System.Windows.Application
     {
         Log.Info("Quit");
         IsQuitting = true;
+        _offerPoll?.Stop();
         _phoneWindow?.Close();
         _coordinator?.Dispose();
         _ = _connection?.DisposeAsync();

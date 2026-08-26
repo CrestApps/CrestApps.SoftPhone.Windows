@@ -73,6 +73,16 @@ public sealed class IncomingCallCoordinator : IDisposable
     /// <summary>Phone window was minimized or lost focus — show the popup if still ringing.</summary>
     public void OnPhoneBackgrounded() => ShowPopupIfNeeded();
 
+    /// <summary>
+    /// The tenant reports no pending inbound offer — clear a real call's popup/ring. Simulated
+    /// calls (dev) are left alone since they aren't backed by a real offer.
+    /// </summary>
+    public void OnNoActiveOffer()
+    {
+        if (_currentCallId is not null && !_currentCallId.StartsWith("SIM-", StringComparison.Ordinal))
+            Clear();
+    }
+
     public void HandleStateChanged(Call call)
     {
         if (call is null) return;
