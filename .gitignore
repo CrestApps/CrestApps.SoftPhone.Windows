@@ -48,3 +48,6 @@ Thumbs.db
 # Local secrets (never commit)
 *.local.json
 signing/*.pfx
+
+# Build/publish artifacts (portable builds, packages)
+artifacts/
