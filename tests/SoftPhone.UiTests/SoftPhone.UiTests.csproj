@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    FlaUI UI-automation tests: drive the real app windows (setup, settings, incoming popup).
+    Needs an interactive desktop (windows-latest in CI works). Kept as a separate, optionally
+    gated job. Launches the built app exe with isolated settings via SOFTPHONE_SETTINGS_DIR.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="FlaUI.UIA3" Version="4.0.0" />
+  </ItemGroup>
+
+  <!-- Ensure the app builds before these tests run so the exe exists to launch. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SoftPhone.App\SoftPhone.App.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

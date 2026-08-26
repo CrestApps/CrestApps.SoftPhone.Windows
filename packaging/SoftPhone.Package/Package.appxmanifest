@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX manifest for CrestApps Soft Phone.
+
+  Identity Name/Publisher are placeholders for local/sideload builds. For Microsoft Store
+  submissions, Partner Center assigns the real Identity — the release workflow injects it
+  (see docs/RELEASING.md). Version is 0.0.0.0 here and stamped from the release tag at build.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  IgnorableNamespaces="uap uap5 rescap desktop com">
+
+  <Identity Name="CrestApps.SoftPhone"
+            Publisher="CN=CrestApps"
+            Version="0.0.0.0" />
+
+  <Properties>
+    <DisplayName>Soft Phone</DisplayName>
+    <PublisherDisplayName>CrestApps</PublisherDisplayName>
+    <Logo>Images\StoreLogo.png</Logo>
+    <Description>Always-on tray soft phone that rings even when its window is closed, for sites running the CrestApps Telephony module on OrchardCore.</Description>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="CrestApps.SoftPhone.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Soft Phone"
+        Description="Always-on soft phone for the CrestApps Telephony module."
+        BackgroundColor="transparent"
+        Square150x150Logo="Images\Square150x150Logo.png"
+        Square44x44Logo="Images\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Images\Wide310x150Logo.png"
+                         Square71x71Logo="Images\Square71x71Logo.png"
+                         Square310x310Logo="Images\Square310x310Logo.png" />
+        <uap:SplashScreen Image="Images\SplashScreen.png" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <!-- Autostart at sign-in (user-toggleable; org can force via policy). -->
+        <uap5:Extension Category="windows.startupTask">
+          <uap5:StartupTask TaskId="CrestAppsSoftPhoneStartup"
+                            Enabled="true"
+                            DisplayName="Soft Phone" />
+        </uap5:Extension>
+
+        <!-- Toast activation so Answer/Decline/Voicemail work from a Windows toast, running
+             or cold-start. The runtime registers the activator with this CLSID. -->
+        <desktop:Extension Category="windows.toastNotificationActivation">
+          <desktop:ToastNotificationActivation ToastActivatorCLSID="B6A2C0E4-6E3F-4D2E-9C1B-9E1A2F7D3C55" />
+        </desktop:Extension>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:ExeServer Executable="CrestApps.SoftPhone.exe" Arguments="--toast-activated" DisplayName="Soft Phone Toast Activator">
+              <com:Class Id="B6A2C0E4-6E3F-4D2E-9C1B-9E1A2F7D3C55" DisplayName="Soft Phone Toast Activator" />
+            </com:ExeServer>
+          </com:ComServer>
+        </com:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <DeviceCapability Name="microphone" />
+  </Capabilities>
+</Package>

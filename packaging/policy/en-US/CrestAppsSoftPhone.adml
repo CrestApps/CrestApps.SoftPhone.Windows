@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources revision="1.0" schemaVersion="1.0">
+  <displayName>CrestApps Soft Phone</displayName>
+  <description>Group Policy settings for the CrestApps Soft Phone Windows app.</description>
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_SoftPhone_1_0">CrestApps Soft Phone 1.0 or later</string>
+
+      <string id="Cat_CrestApps">CrestApps</string>
+      <string id="Cat_SoftPhone">Soft Phone</string>
+
+      <string id="Domain_Name">Tenant domain</string>
+      <string id="Domain_Help">Sets the soft phone tenant domain for all users (for example, phone.example.com). When configured, this value is applied to the app. Unless "Allow users to change the tenant domain" is enabled, the domain field is shown read-only in the app ("Managed by your organization").
+
+Enter the bare host only — no https:// and no path.</string>
+
+      <string id="AllowOverride_Name">Allow users to change the tenant domain</string>
+      <string id="AllowOverride_Help">When enabled, the managed "Tenant domain" acts only as a default: users may change it in Settings. When disabled or not configured, the managed domain is enforced and shown read-only.
+
+Has no effect unless "Tenant domain" is also configured.</string>
+
+      <string id="StartWithWindows_Name">Start at sign-in</string>
+      <string id="StartWithWindows_Help">Forces whether CrestApps Soft Phone starts automatically when the user signs in to Windows. Enabled forces auto-start on; Disabled forces it off. When configured, the corresponding option is shown read-only in the app. If not configured, the user controls it (default: on).</string>
+
+      <string id="Ringtone_Name">Play ringtone for incoming calls</string>
+      <string id="Ringtone_Help">Forces whether a ringtone plays for incoming calls. When configured, the option is shown read-only in the app. If not configured, the user controls it (default: on).</string>
+    </stringTable>
+
+    <presentationTable>
+      <presentation id="Domain">
+        <textBox refId="Domain_Text">
+          <label>Tenant domain (e.g. phone.example.com):</label>
+        </textBox>
+      </presentation>
+      <presentation id="AllowOverride" />
+      <presentation id="StartWithWindows" />
+      <presentation id="Ringtone" />
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

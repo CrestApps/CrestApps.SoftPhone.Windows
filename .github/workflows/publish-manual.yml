@@ -1,0 +1,70 @@
+name: Publish (manual)
+
+# Manually build + submit a version to the Microsoft Store from the Actions tab, without
+# cutting a git tag. Handy for smoke-testing the Store pipeline. You supply the version.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, e.g. 1.0.0 (no leading v)'
+        required: true
+        type: string
+      commit:
+        description: 'Auto-commit the Store submission (uncheck to leave it in draft)'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-manual
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Normalize version (strip leading v)
+        id: ver
+        shell: bash
+        run: echo "version=${INPUT_VERSION#v}" >> "$GITHUB_OUTPUT"
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+
+      - name: Stamp MSIX manifest version
+        run: pwsh scripts/Set-Version.ps1 -Version "${{ steps.ver.outputs.version }}"
+
+      - name: Build + package MSIX
+        env:
+          SOFTPHONE_VERSION: ${{ steps.ver.outputs.version }}
+        run: >
+          msbuild packaging/SoftPhone.Package/SoftPhone.Package.wapproj
+          -t:Restore;Build
+          -p:Configuration=Release
+          -p:Platform=x64
+          -p:UapAppxPackageBuildMode=StoreUpload
+          -p:AppxBundlePlatforms="x64|arm64"
+          -p:AppxBundle=Always
+          -p:AppxPackageSigningEnabled=false
+          -p:AppxPackageDir="${{ github.workspace }}\artifacts\msix\\"
+
+      - name: Submit to the Store
+        shell: pwsh
+        env:
+          PARTNER_TENANT_ID: ${{ secrets.PARTNER_TENANT_ID }}
+          PARTNER_CLIENT_ID: ${{ secrets.PARTNER_CLIENT_ID }}
+          PARTNER_CLIENT_SECRET: ${{ secrets.PARTNER_CLIENT_SECRET }}
+          STORE_APP_ID: ${{ secrets.STORE_APP_ID }}
+        run: |
+          $noCommit = if ("${{ inputs.commit }}" -eq "true") { @() } else { @("-NoCommit") }
+          pwsh scripts/Submit-Store.ps1 -PackagePath "artifacts" @noCommit

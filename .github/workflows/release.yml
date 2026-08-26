@@ -1,0 +1,140 @@
+name: Release
+
+# Push a tag like v1.0.0 to build, package + sign the MSIX, submit to the Microsoft Store,
+# and cut a GitHub Release. The tag is the single source of version truth: the leading "v"
+# is stripped and stamped into the assembly (SOFTPHONE_VERSION) and the appxmanifest.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write # create the GitHub Release + upload assets
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------- build + package
+  build:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Derive version from tag
+        id: ver
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp MSIX manifest version
+        run: pwsh scripts/Set-Version.ps1 -Version "${{ steps.ver.outputs.version }}"
+
+      - name: Restore + unit tests
+        env:
+          SOFTPHONE_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          dotnet restore CrestApps.SoftPhone.Windows.sln
+          dotnet build CrestApps.SoftPhone.Windows.sln -c Release --no-restore
+          dotnet test tests/SoftPhone.Core.Tests/SoftPhone.Core.Tests.csproj -c Release --no-build
+          dotnet test tests/SoftPhone.Notifications.Tests/SoftPhone.Notifications.Tests.csproj -c Release --no-build
+
+      - name: Decode signing certificate (sideload MSIX)
+        if: ${{ env.SIGNING_PFX_BASE64 != '' }}
+        env:
+          SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\sign.pfx", [Convert]::FromBase64String($env:SIGNING_PFX_BASE64))
+          echo "PFX_PATH=$env:RUNNER_TEMP\sign.pfx" >> $env:GITHUB_ENV
+
+      - name: Build MSIX bundle (Store upload package)
+        env:
+          SOFTPHONE_VERSION: ${{ steps.ver.outputs.version }}
+        run: >
+          msbuild packaging/SoftPhone.Package/SoftPhone.Package.wapproj
+          -p:Configuration=Release
+          -p:Platform=x64
+          -p:UapAppxPackageBuildMode=StoreUpload
+          -p:AppxBundlePlatforms="x64|arm64"
+          -p:AppxBundle=Always
+          -p:AppxPackageSigningEnabled=false
+          -p:AppxPackageDir="${{ github.workspace }}\artifacts\msix\\"
+
+      - name: Sign sideload MSIX (optional, for Intune/sideload distribution)
+        if: ${{ env.PFX_PATH != '' }}
+        env:
+          SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
+        shell: pwsh
+        run: |
+          $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          Get-ChildItem "${{ github.workspace }}\artifacts\msix" -Recurse -Include *.msix,*.msixbundle | ForEach-Object {
+            & $signtool sign /fd SHA256 /a /f "$env:PFX_PATH" /p "$env:SIGNING_PFX_PASSWORD" $_.FullName
+          }
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: msix
+          path: artifacts/msix/**/*
+          if-no-files-found: error
+
+  # ---------------------------------------------------------- GitHub Release
+  github-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: msix
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ needs.build.outputs.version }}
+          generate_release_notes: true
+          files: |
+            artifacts/**/*.msix
+            artifacts/**/*.msixbundle
+            artifacts/**/*.msixupload
+
+  # ---------------------------------------------------------- Microsoft Store
+  # Requires (repo secrets): PARTNER_TENANT_ID, PARTNER_CLIENT_ID, PARTNER_CLIENT_SECRET,
+  # STORE_APP_ID. See docs/RELEASING.md for the one-time Partner Center + Azure AD setup.
+  store-submit:
+    needs: build
+    runs-on: windows-latest
+    environment: production # add a required reviewer to gate Store pushes
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: msix
+          path: artifacts
+
+      - name: Guard — required Store secrets present
+        shell: pwsh
+        run: |
+          foreach ($n in 'PARTNER_TENANT_ID','PARTNER_CLIENT_ID','PARTNER_CLIENT_SECRET','STORE_APP_ID') {
+            if (-not (Test-Path "env:$n")) { throw "Missing secret $n — see docs/RELEASING.md." }
+          }
+        env:
+          PARTNER_TENANT_ID: ${{ secrets.PARTNER_TENANT_ID }}
+          PARTNER_CLIENT_ID: ${{ secrets.PARTNER_CLIENT_ID }}
+          PARTNER_CLIENT_SECRET: ${{ secrets.PARTNER_CLIENT_SECRET }}
+          STORE_APP_ID: ${{ secrets.STORE_APP_ID }}
+
+      - name: Submit to the Store (StoreBroker)
+        shell: pwsh
+        env:
+          PARTNER_TENANT_ID: ${{ secrets.PARTNER_TENANT_ID }}
+          PARTNER_CLIENT_ID: ${{ secrets.PARTNER_CLIENT_ID }}
+          PARTNER_CLIENT_SECRET: ${{ secrets.PARTNER_CLIENT_SECRET }}
+          STORE_APP_ID: ${{ secrets.STORE_APP_ID }}
+        run: pwsh scripts/Submit-Store.ps1 -PackagePath "artifacts"

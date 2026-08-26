@@ -1,0 +1,49 @@
+<Window x:Class="SoftPhone.App.IncomingCallWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Incoming call" Width="360" SizeToContent="Height"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
+        Topmost="True" AllowsTransparency="True" Background="Transparent">
+    <Border Background="White" CornerRadius="10" Margin="10" BorderBrush="{StaticResource Line}" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="18" ShadowDepth="2" Opacity="0.28" Color="#334155" />
+        </Border.Effect>
+        <StackPanel Margin="18">
+            <StackPanel Orientation="Horizontal">
+                <Border Width="40" Height="40" CornerRadius="20" Background="{StaticResource Brand}">
+                    <TextBlock Text="&#xE717;" FontFamily="Segoe MDL2 Assets" Foreground="White"
+                               FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="CallerName" Text="Incoming call" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{StaticResource Ink}" />
+                    <TextBlock x:Name="CallerNumber" Text="" Foreground="{StaticResource Muted}" FontSize="12" />
+                </StackPanel>
+                <Border x:Name="QueueBadge" Visibility="Collapsed" Background="{StaticResource Panel}"
+                        BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10"
+                        Padding="8,2" HorizontalAlignment="Right" VerticalAlignment="Top">
+                    <TextBlock x:Name="QueueText" FontSize="11" Foreground="{StaticResource Muted}" />
+                </Border>
+            </StackPanel>
+
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" x:Name="AnswerButton" Content="Answer" Height="38" Cursor="Hand"
+                        Background="#16A34A" Foreground="White" BorderThickness="0" FontWeight="SemiBold"
+                        Click="Answer_Click" />
+                <Button Grid.Column="2" x:Name="DeclineButton" Content="Decline" Height="38" Cursor="Hand"
+                        Background="#DC2626" Foreground="White" BorderThickness="0" FontWeight="SemiBold"
+                        Click="Decline_Click" />
+                <Button Grid.Column="4" x:Name="VoicemailButton" Content="Voicemail" Height="38" Cursor="Hand"
+                        Background="{StaticResource Panel}" Foreground="{StaticResource Ink}"
+                        BorderBrush="{StaticResource Line}" BorderThickness="1" Click="Voicemail_Click" />
+            </Grid>
+        </StackPanel>
+    </Border>
+</Window>

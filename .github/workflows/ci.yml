@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # ------------------------------------------------ build + unit tests
+  build-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore CrestApps.SoftPhone.Windows.sln
+
+      - name: Build (Release)
+        run: dotnet build CrestApps.SoftPhone.Windows.sln -c Release --no-restore
+
+      - name: Unit tests — SoftPhone.Core
+        run: dotnet test tests/SoftPhone.Core.Tests/SoftPhone.Core.Tests.csproj -c Release --no-build --logger "trx;LogFileName=core.trx"
+
+      - name: Unit tests — SoftPhone.Notifications
+        run: dotnet test tests/SoftPhone.Notifications.Tests/SoftPhone.Notifications.Tests.csproj -c Release --no-build --logger "trx;LogFileName=notifications.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/TestResults/*.trx'
+          if-no-files-found: ignore
+
+  # ------------------------------------------------ FlaUI UI tests (interactive desktop)
+  ui-tests:
+    runs-on: windows-latest
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build app (Debug, for the UI tests to launch)
+        run: dotnet build src/SoftPhone.App/SoftPhone.App.csproj -c Debug
+      - name: UI tests (FlaUI)
+        run: dotnet test tests/SoftPhone.UiTests/SoftPhone.UiTests.csproj -c Debug --logger "trx;LogFileName=ui.trx"
+
+  # ------------------------------------------------ MSIX package (unsigned artifact)
+  package:
+    runs-on: windows-latest
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Restore (msbuild)
+        run: msbuild packaging/SoftPhone.Package/SoftPhone.Package.wapproj -t:Restore -p:Configuration=Release -p:Platform=x64
+
+      - name: Build MSIX (unsigned, sideload)
+        run: >
+          msbuild packaging/SoftPhone.Package/SoftPhone.Package.wapproj
+          -p:Configuration=Release
+          -p:Platform=x64
+          -p:UapAppxPackageBuildMode=SideloadOnly
+          -p:AppxBundle=Never
+          -p:AppxPackageSigningEnabled=false
+          -p:AppxPackageDir="${{ github.workspace }}\artifacts\msix\\"
+
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: msix-unsigned
+          path: artifacts/msix/**/*.msix
+          if-no-files-found: warn

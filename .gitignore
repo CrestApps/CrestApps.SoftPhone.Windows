@@ -1,0 +1,50 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+[Ww][Ii][Nn]32/
+[Bb]uild[Ll]og.*
+*.binlog
+
+# MSIX / packaging output
+[Aa]pp[Pp]ackages/
+BundleArtifacts/
+*.appx
+*.appxbundle
+*.appxupload
+*.msix
+*.msixbundle
+*.cer
+*.pfx
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.DotSettings.user
+
+# Test / coverage
+[Tt]est[Rr]esults/
+*.coverage
+*.coveragexml
+coverage/
+*.trx
+
+# WebView2 dev user-data folders
+**/*.WebView2/
+WebView2UserData/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Local secrets (never commit)
+*.local.json
+signing/*.pfx

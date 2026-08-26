@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    UI-free notification logic: builds the toast payload/arguments and parses the
+    activation arguments back. Deliberately pure (no Windows App SDK reference) so the
+    important logic is unit-tested without a desktop session — the app project consumes
+    the built XML and hands it to the OS notification API, and passes activation args
+    back through the parser here.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+</Project>

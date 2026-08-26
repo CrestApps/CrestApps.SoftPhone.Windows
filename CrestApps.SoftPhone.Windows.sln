@@ -1,0 +1,64 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C1F15970-97DC-43D0-8D0C-6DD792A6E295}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoftPhone.Core", "src\SoftPhone.Core\SoftPhone.Core.csproj", "{98A2710C-2FCD-4063-8C60-7E23F8150C53}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoftPhone.Notifications", "src\SoftPhone.Notifications\SoftPhone.Notifications.csproj", "{F9FAE62D-8849-4BBF-9EA7-3E808450C262}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{6C9C7624-C0DB-4028-9B59-60F41BE791F5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoftPhone.Core.Tests", "tests\SoftPhone.Core.Tests\SoftPhone.Core.Tests.csproj", "{E21E3DF8-E478-467C-88AE-52CA4D259FAC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoftPhone.Notifications.Tests", "tests\SoftPhone.Notifications.Tests\SoftPhone.Notifications.Tests.csproj", "{5EB505CF-0AA5-4FA0-8CFE-E8CF2BD85EC3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoftPhone.App", "src\SoftPhone.App\SoftPhone.App.csproj", "{7A1891AD-4EE3-40B6-B48F-51849AD05F5A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoftPhone.UiTests", "tests\SoftPhone.UiTests\SoftPhone.UiTests.csproj", "{B7142DB4-4996-4850-A5E6-A5286ACAE269}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{98A2710C-2FCD-4063-8C60-7E23F8150C53}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{98A2710C-2FCD-4063-8C60-7E23F8150C53}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{98A2710C-2FCD-4063-8C60-7E23F8150C53}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{98A2710C-2FCD-4063-8C60-7E23F8150C53}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F9FAE62D-8849-4BBF-9EA7-3E808450C262}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F9FAE62D-8849-4BBF-9EA7-3E808450C262}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F9FAE62D-8849-4BBF-9EA7-3E808450C262}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F9FAE62D-8849-4BBF-9EA7-3E808450C262}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E21E3DF8-E478-467C-88AE-52CA4D259FAC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E21E3DF8-E478-467C-88AE-52CA4D259FAC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E21E3DF8-E478-467C-88AE-52CA4D259FAC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E21E3DF8-E478-467C-88AE-52CA4D259FAC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5EB505CF-0AA5-4FA0-8CFE-E8CF2BD85EC3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5EB505CF-0AA5-4FA0-8CFE-E8CF2BD85EC3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5EB505CF-0AA5-4FA0-8CFE-E8CF2BD85EC3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5EB505CF-0AA5-4FA0-8CFE-E8CF2BD85EC3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A1891AD-4EE3-40B6-B48F-51849AD05F5A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A1891AD-4EE3-40B6-B48F-51849AD05F5A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A1891AD-4EE3-40B6-B48F-51849AD05F5A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A1891AD-4EE3-40B6-B48F-51849AD05F5A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7142DB4-4996-4850-A5E6-A5286ACAE269}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7142DB4-4996-4850-A5E6-A5286ACAE269}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7142DB4-4996-4850-A5E6-A5286ACAE269}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7142DB4-4996-4850-A5E6-A5286ACAE269}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{98A2710C-2FCD-4063-8C60-7E23F8150C53} = {C1F15970-97DC-43D0-8D0C-6DD792A6E295}
+		{F9FAE62D-8849-4BBF-9EA7-3E808450C262} = {C1F15970-97DC-43D0-8D0C-6DD792A6E295}
+		{E21E3DF8-E478-467C-88AE-52CA4D259FAC} = {6C9C7624-C0DB-4028-9B59-60F41BE791F5}
+		{5EB505CF-0AA5-4FA0-8CFE-E8CF2BD85EC3} = {6C9C7624-C0DB-4028-9B59-60F41BE791F5}
+		{7A1891AD-4EE3-40B6-B48F-51849AD05F5A} = {C1F15970-97DC-43D0-8D0C-6DD792A6E295}
+		{B7142DB4-4996-4850-A5E6-A5286ACAE269} = {6C9C7624-C0DB-4028-9B59-60F41BE791F5}
+	EndGlobalSection
+EndGlobal

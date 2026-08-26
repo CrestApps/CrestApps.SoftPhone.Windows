@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Group Policy template for CrestApps Soft Phone (Windows).
+  Copy CrestAppsSoftPhone.admx to %SystemRoot%\PolicyDefinitions (or the domain Central Store)
+  and the matching en-US\CrestAppsSoftPhone.adml alongside it.
+
+  Backing registry key (machine or user):
+    HKLM\SOFTWARE\Policies\CrestApps\SoftPhone
+    HKCU\SOFTWARE\Policies\CrestApps\SoftPhone
+  Precedence in the app: Machine policy ▸ User policy ▸ provisioning file ▸ user setting ▸ default.
+-->
+<policyDefinitions revision="1.0" schemaVersion="1.0">
+  <policyNamespaces>
+    <target prefix="crestappsSoftPhone" namespace="CrestApps.Policies.SoftPhone" />
+    <using prefix="windows" namespace="Microsoft.Policies.Windows" />
+  </policyNamespaces>
+
+  <resources minRequiredRevision="1.0" />
+
+  <supportedOn>
+    <definitions>
+      <definition name="SUPPORTED_SoftPhone_1_0" displayName="$(string.SUPPORTED_SoftPhone_1_0)" />
+    </definitions>
+  </supportedOn>
+
+  <categories>
+    <category name="CrestApps" displayName="$(string.Cat_CrestApps)" />
+    <category name="SoftPhone" displayName="$(string.Cat_SoftPhone)">
+      <parentCategory ref="CrestApps" />
+    </category>
+  </categories>
+
+  <policies>
+    <!-- Tenant domain (text). Present in both Machine and User class. -->
+    <policy name="Domain" class="Both" displayName="$(string.Domain_Name)"
+            explainText="$(string.Domain_Help)" key="SOFTWARE\Policies\CrestApps\SoftPhone"
+            presentation="$(presentation.Domain)">
+      <parentCategory ref="SoftPhone" />
+      <supportedOn ref="SUPPORTED_SoftPhone_1_0" />
+      <elements>
+        <text id="Domain_Text" valueName="Domain" required="true" maxLength="255" />
+      </elements>
+    </policy>
+
+    <!-- Allow the user to override the managed domain (default: not allowed → domain is locked). -->
+    <policy name="AllowUserOverrideDomain" class="Both" displayName="$(string.AllowOverride_Name)"
+            explainText="$(string.AllowOverride_Help)" key="SOFTWARE\Policies\CrestApps\SoftPhone"
+            valueName="AllowUserOverrideDomain" presentation="$(presentation.AllowOverride)">
+      <parentCategory ref="SoftPhone" />
+      <supportedOn ref="SUPPORTED_SoftPhone_1_0" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+
+    <!-- Start at sign-in (forces the setting; user cannot change it when configured). -->
+    <policy name="StartWithWindows" class="Both" displayName="$(string.StartWithWindows_Name)"
+            explainText="$(string.StartWithWindows_Help)" key="SOFTWARE\Policies\CrestApps\SoftPhone"
+            valueName="StartWithWindows" presentation="$(presentation.StartWithWindows)">
+      <parentCategory ref="SoftPhone" />
+      <supportedOn ref="SUPPORTED_SoftPhone_1_0" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+
+    <!-- Ringtone on incoming calls. -->
+    <policy name="RingtoneEnabled" class="Both" displayName="$(string.Ringtone_Name)"
+            explainText="$(string.Ringtone_Help)" key="SOFTWARE\Policies\CrestApps\SoftPhone"
+            valueName="RingtoneEnabled" presentation="$(presentation.Ringtone)">
+      <parentCategory ref="SoftPhone" />
+      <supportedOn ref="SUPPORTED_SoftPhone_1_0" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+  </policies>
+</policyDefinitions>

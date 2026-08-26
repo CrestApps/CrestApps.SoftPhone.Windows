@@ -1,0 +1,44 @@
+<Project>
+
+  <!--
+    Common properties for every project in the solution.
+
+    Versioning: the release TAG is the single source of truth (see docs/RELEASING.md
+    and .github/workflows/release.yml). CI passes the tag version in the
+    SOFTPHONE_VERSION environment variable; nothing here is hand-edited per release.
+    Locally (no env var) the version falls back to a 0.0.0 dev stamp.
+  -->
+
+  <PropertyGroup>
+    <SoftPhoneVersion Condition="'$(SOFTPHONE_VERSION)' != ''">$(SOFTPHONE_VERSION)</SoftPhoneVersion>
+    <SoftPhoneVersion Condition="'$(SoftPhoneVersion)' == ''">0.0.0</SoftPhoneVersion>
+
+    <Version>$(SoftPhoneVersion)</Version>
+    <AssemblyVersion>$(SoftPhoneVersion).0</AssemblyVersion>
+    <FileVersion>$(SoftPhoneVersion).0</FileVersion>
+    <InformationalVersion>$(SoftPhoneVersion)</InformationalVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <Company>CrestApps</Company>
+    <Product>CrestApps Soft Phone</Product>
+    <Authors>CrestApps</Authors>
+    <Copyright>© CrestApps. All rights reserved.</Copyright>
+    <NeutralLanguage>en-US</NeutralLanguage>
+  </PropertyGroup>
+
+  <!-- A visible build stamp surfaced in the Settings window ("which build am I running"). -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>BuildStampUtc</_Parameter1>
+      <_Parameter2>$([System.DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"))</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>
