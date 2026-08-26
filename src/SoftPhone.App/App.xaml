@@ -38,6 +38,43 @@
             </Setter>
         </Style>
 
+        <!-- Modern underline-style tabs. -->
+        <Style x:Key="SettingsTabItem" TargetType="TabItem">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="16,8" />
+            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="bd" Background="Transparent" Padding="{TemplateBinding Padding}"
+                                BorderThickness="0,0,0,2" BorderBrush="Transparent">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Brand}" />
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Bordered card wrapping a tab's content. -->
+        <Style x:Key="TabCard" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="Padding" Value="18" />
+        </Style>
+
         <Style x:Key="CloseCaptionButton" TargetType="Button" BasedOn="{StaticResource CaptionButton}">
             <Setter Property="Template">
                 <Setter.Value>

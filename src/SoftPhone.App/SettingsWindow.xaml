@@ -1,101 +1,105 @@
 <Window x:Class="SoftPhone.App.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Soft Phone — Settings" Height="560" Width="560"
+        Title="Soft Phone — Settings" Height="580" Width="560"
         WindowStartupLocation="CenterScreen" ResizeMode="CanMinimize"
-        Background="White">
+        FontFamily="Segoe UI" FontSize="13"
+        Background="{StaticResource Panel}">
     <Grid Margin="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TabControl Grid.Row="0" x:Name="Tabs" BorderThickness="0" Padding="0,12,0,0">
+        <TabControl Grid.Row="0" x:Name="Tabs" BorderThickness="0" Background="Transparent">
             <!-- ============================ GENERAL ============================ -->
-            <TabItem Header="General">
-                <StackPanel Margin="4,14,4,4">
-                    <Border x:Name="ManagedBanner" Visibility="Collapsed" Margin="0,0,0,14" Padding="10,7"
-                            Background="#FFF7ED" BorderBrush="#FED7AA" BorderThickness="1" CornerRadius="6">
-                        <TextBlock Text="Some settings are managed by your organization and can't be changed."
-                                   Foreground="#9A3412" TextWrapping="Wrap" />
-                    </Border>
+            <TabItem Header="General" Style="{StaticResource SettingsTabItem}">
+                <Border Style="{StaticResource TabCard}" Margin="0,10,0,0">
+                    <StackPanel>
+                        <Border x:Name="ManagedBanner" Visibility="Collapsed" Margin="0,0,0,16" Padding="10,7"
+                                Background="#FFF7ED" BorderBrush="#FED7AA" BorderThickness="1" CornerRadius="6">
+                            <TextBlock Text="Some settings are managed by your organization and can't be changed."
+                                       Foreground="#9A3412" TextWrapping="Wrap" />
+                        </Border>
 
-                    <TextBlock Text="Tenant domain" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
-                    <TextBlock Text="Your organization's soft phone domain." Foreground="{StaticResource Muted}"
-                               FontSize="12" Margin="0,0,0,4" />
-                    <Grid>
-                        <TextBox x:Name="DomainBox" Height="30" VerticalContentAlignment="Center" Padding="8,0" />
-                        <TextBlock x:Name="DomainManaged" Text="🔒 Managed" Foreground="{StaticResource Muted}"
-                                   HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"
-                                   Visibility="Collapsed" />
-                    </Grid>
-                    <TextBlock x:Name="DomainError" Foreground="{StaticResource Fail}" FontSize="12"
-                               Margin="2,4,0,0" Visibility="Collapsed" TextWrapping="Wrap" />
+                        <TextBlock Text="Tenant domain" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                        <TextBlock Text="Your organization's soft phone domain." Foreground="{StaticResource Muted}"
+                                   Margin="0,1,0,6" />
+                        <Grid>
+                            <TextBox x:Name="DomainBox" Height="32" VerticalContentAlignment="Center" Padding="8,0" />
+                            <TextBlock x:Name="DomainManaged" Text="🔒 Managed" Foreground="{StaticResource Muted}"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"
+                                       Visibility="Collapsed" />
+                        </Grid>
+                        <TextBlock x:Name="DomainError" Foreground="{StaticResource Fail}"
+                                   Margin="2,5,0,0" Visibility="Collapsed" TextWrapping="Wrap" />
 
-                    <CheckBox x:Name="StartupCheck" Content="Start Soft Phone when I sign in to Windows"
-                              Margin="0,20,0,0" />
-                    <CheckBox x:Name="RingtoneCheck" Content="Play a ringtone for incoming calls" Margin="0,12,0,0" />
-                    <CheckBox x:Name="AlwaysOnTopCheck" Content="Keep the phone window always on top" Margin="0,12,0,0" />
-                    <CheckBox x:Name="DiagnosticsCheck"
-                              Content="Enable developer tools (adds “Simulate incoming call” to the tray menu)"
-                              Margin="0,12,0,0" />
-                </StackPanel>
+                        <CheckBox x:Name="StartupCheck" Content="Start Soft Phone when I sign in to Windows"
+                                  Margin="0,22,0,0" />
+                        <CheckBox x:Name="RingtoneCheck" Content="Play a ringtone for incoming calls" Margin="0,14,0,0" />
+                        <CheckBox x:Name="AlwaysOnTopCheck" Content="Keep the phone window always on top" Margin="0,14,0,0" />
+                        <CheckBox x:Name="DiagnosticsCheck"
+                                  Content="Enable developer tools (adds “Simulate incoming call” to the tray menu)"
+                                  Margin="0,14,0,0" />
+                    </StackPanel>
+                </Border>
             </TabItem>
 
             <!-- ========================== DIAGNOSTICS ========================== -->
-            <TabItem Header="Diagnostics">
-                <DockPanel Margin="4,14,4,4">
-                    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="{StaticResource Muted}"
-                               Text="Verify the background connection can authenticate and reach the telephony hub. Sign in inside the phone window first, then run the test." />
+            <TabItem Header="Diagnostics" Style="{StaticResource SettingsTabItem}">
+                <Border Style="{StaticResource TabCard}" Margin="0,10,0,0">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="{StaticResource Muted}"
+                                   Text="Verify the background connection can authenticate and reach the telephony hub. Sign in inside the phone window first, then run the test." />
 
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,12,0,0">
-                        <Button x:Name="RunTestButton" Content="Run connection test" Padding="12,5"
-                                Background="{StaticResource Brand}" Foreground="White" BorderThickness="0"
-                                Cursor="Hand" Click="RunTestButton_Click" />
-                        <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
-                            <Ellipse x:Name="LiveDot" Width="9" Height="9" Fill="#94A3B8" VerticalAlignment="Center" />
-                            <TextBlock x:Name="LiveStatus" Text="Background: idle" Margin="8,0,0,0"
-                                       Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,14,0,0">
+                            <Button x:Name="RunTestButton" Content="Run connection test" Padding="12,6"
+                                    Background="{StaticResource Brand}" Foreground="White" BorderThickness="0"
+                                    Cursor="Hand" Click="RunTestButton_Click" />
+                            <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+                                <Ellipse x:Name="LiveDot" Width="9" Height="9" Fill="#94A3B8" VerticalAlignment="Center" />
+                                <TextBlock x:Name="LiveStatus" Text="Background: idle" Margin="8,0,0,0"
+                                           Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
 
-                    <Border DockPanel.Dock="Top" x:Name="SummaryBox" Margin="0,12,0,4" Padding="10,8"
-                            CornerRadius="6" Visibility="Collapsed">
-                        <TextBlock x:Name="SummaryText" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="White" />
-                    </Border>
+                        <Border DockPanel.Dock="Top" x:Name="SummaryBox" Margin="0,14,0,4" Padding="10,8"
+                                CornerRadius="6" Visibility="Collapsed">
+                            <TextBlock x:Name="SummaryText" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="White" />
+                        </Border>
 
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
-                        <ItemsControl x:Name="StepsList">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="20" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="{Binding Glyph}" Foreground="{Binding Color}"
-                                                   FontWeight="Bold" VerticalAlignment="Top" />
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="{Binding Label}" FontWeight="SemiBold"
-                                                       Foreground="{StaticResource Ink}" TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding Detail}" Foreground="{StaticResource Muted}"
-                                                       TextWrapping="Wrap" FontSize="12"
-                                                       Visibility="{Binding DetailVisibility}" />
-                                        </StackPanel>
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </DockPanel>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                            <ItemsControl x:Name="StepsList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="20" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding Glyph}" Foreground="{Binding Color}"
+                                                       FontWeight="Bold" VerticalAlignment="Top" />
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="{Binding Label}" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource Ink}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Detail}" Foreground="{StaticResource Muted}"
+                                                           TextWrapping="Wrap" Visibility="{Binding DetailVisibility}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
             </TabItem>
         </TabControl>
 
-        <Grid Grid.Row="1" Margin="0,14,0,0">
+        <Grid Grid.Row="1" Margin="0,16,0,0">
             <TextBlock x:Name="BuildStamp" VerticalAlignment="Center" Foreground="{StaticResource Muted}" FontSize="11" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Cancel" Width="90" Height="30" Click="Cancel_Click" Margin="0,0,8,0" />
-                <Button x:Name="SaveButton" Content="Save" Width="90" Height="30" Click="Save_Click"
+                <Button Content="Cancel" Width="94" Height="32" Click="Cancel_Click" Margin="0,0,8,0" />
+                <Button x:Name="SaveButton" Content="Save" Width="94" Height="32" Click="Save_Click"
                         Background="{StaticResource Brand}" Foreground="White" BorderThickness="0" />
             </StackPanel>
         </Grid>
