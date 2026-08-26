@@ -25,6 +25,9 @@ public sealed class SoftPhoneSettings
     /// <summary>Play the bundled ringtone on an incoming call.</summary>
     public bool RingtoneEnabled { get; set; } = true;
 
+    /// <summary>Keep the phone window above all other windows.</summary>
+    public bool AlwaysOnTop { get; set; }
+
     /// <summary>Last known phone-window bounds.</summary>
     public WindowBounds? WindowBounds { get; set; }
 
@@ -39,6 +42,7 @@ public sealed class SoftPhoneSettings
         Domain = Domain,
         StartWithWindows = StartWithWindows,
         RingtoneEnabled = RingtoneEnabled,
+        AlwaysOnTop = AlwaysOnTop,
         WindowBounds = WindowBounds is null ? null : new WindowBounds
         {
             Top = WindowBounds.Top,

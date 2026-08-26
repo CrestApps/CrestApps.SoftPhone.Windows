@@ -48,6 +48,12 @@ public partial class IncomingCallWindow : Window
         {
             Left = wa.Right - ActualWidth - 12;
             Top = wa.Bottom - ActualHeight - 12;
+
+            // Force above everything — including other topmost windows — regardless of the
+            // phone window's "always on top" preference. Toggling re-asserts z-order.
+            Topmost = false;
+            Topmost = true;
+            Activate();
         };
     }
 

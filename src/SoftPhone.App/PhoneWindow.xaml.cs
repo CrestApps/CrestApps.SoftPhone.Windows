@@ -28,8 +28,12 @@ public partial class PhoneWindow : Window
             new Uri("pack://application:,,,/Assets/app-32.png"));
 
         RestoreSavedBounds();
+        ApplyAlwaysOnTop();
         Loaded += async (_, _) => await InitializeAsync();
     }
+
+    /// <summary>Apply the "keep on top" preference (user setting).</summary>
+    public void ApplyAlwaysOnTop() => Topmost = _app.SettingsStore.Load().AlwaysOnTop;
 
     // The X button hides the window to the tray instead of destroying it, so a live WebRTC
     // call (hosted in the WebView2) survives "closing" it. Real exit is via tray → Quit.
@@ -230,6 +234,7 @@ public partial class PhoneWindow : Window
     /// <summary>Re-evaluate configuration (e.g. after Settings changed the domain).</summary>
     public void RefreshConfiguration()
     {
+        ApplyAlwaysOnTop();
         var effective = _app.ResolveSettings();
         if (DomainHelper.IsValidDomain(effective.Domain.Value))
         {

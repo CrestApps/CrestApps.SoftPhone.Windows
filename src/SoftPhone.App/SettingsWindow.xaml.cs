@@ -29,6 +29,7 @@ public partial class SettingsWindow : Window
         DomainBox.Text = _effective.Domain.Value;
         StartupCheck.IsChecked = _effective.StartWithWindows.IsManaged ? _effective.StartWithWindows.Value : StartupManager.IsEnabled();
         RingtoneCheck.IsChecked = _effective.RingtoneEnabled.Value;
+        AlwaysOnTopCheck.IsChecked = user.AlwaysOnTop;
         DiagnosticsCheck.IsChecked = user.Diagnostics;
 
         ApplyManagedLocks();
@@ -71,6 +72,7 @@ public partial class SettingsWindow : Window
         var user = _app.SettingsStore.Load();
         if (!_effective.Domain.IsManaged) user.Domain = domain;
         if (!_effective.RingtoneEnabled.IsManaged) user.RingtoneEnabled = RingtoneCheck.IsChecked == true;
+        user.AlwaysOnTop = AlwaysOnTopCheck.IsChecked == true;
         user.Diagnostics = DiagnosticsCheck.IsChecked == true;
         if (!_effective.StartWithWindows.IsManaged)
         {
