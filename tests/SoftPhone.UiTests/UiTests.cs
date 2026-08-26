@@ -88,6 +88,25 @@ public class UiTests
     }
 
     [Fact]
+    public void Minimizing_the_phone_during_a_call_shows_the_popup()
+    {
+        // Phone window open + a simulated call: while the window is focused the popup is
+        // suppressed; minimizing it must surface the popup.
+        using var host = AppHost.Launch("--simulate-incoming", seedSettingsJson: "{ }");
+        var phone = WaitForWindow(host, w => string.Equals(w.Title, "Soft Phone", StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(phone);
+
+        phone!.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
+
+        var popup = WaitForWindow(host, w =>
+        {
+            try { return w.FindAllDescendants().Any(e => e.ControlType == ControlType.Button && e.Name == "Answer"); }
+            catch { return false; }
+        });
+        Assert.NotNull(popup);
+    }
+
+    [Fact]
     public void Settings_window_has_general_and_diagnostics_tabs()
     {
         using var host = AppHost.Launch("--tray --settings", seedSettingsJson: "{ }");
@@ -101,5 +120,25 @@ public class UiTests
             && string.Equals(e.Name, "Diagnostics", StringComparison.OrdinalIgnoreCase)));
         Assert.NotNull(WaitFor(settings!, e => e.ControlType == ControlType.Button
             && string.Equals(e.Name, "Save", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public void Settings_cancel_closes_the_window()
+    {
+        using var host = AppHost.Launch("--tray --settings", seedSettingsJson: "{ }");
+        var settings = WaitForWindow(host, w => w.Title.Contains("Settings", StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(settings);
+
+        var cancel = WaitFor(settings!, e => e.ControlType == ControlType.Button
+            && string.Equals(e.Name, "Cancel", StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(cancel);
+        cancel!.AsButton().Invoke();
+
+        // The Settings window should be gone (Cancel closes without saving).
+        var stillOpen = Retry.WhileTrue(() =>
+        {
+            try { return settings!.IsAvailable; } catch { return false; }
+        }, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(200));
+        Assert.False(stillOpen.Result, "Settings window did not close after Cancel.");
     }
 }

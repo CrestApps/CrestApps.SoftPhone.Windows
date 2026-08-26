@@ -119,6 +119,15 @@ public partial class App : System.Windows.Application
             _phoneWindow.DomainConfigured += _ => { OnSettingsChanged(); MaybeConnect(); };
             _phoneWindow.SignedIn += () => MaybeConnect();
             _phoneWindow.Closed += (_, _) => _phoneWindow = null;
+            // Show/hide the incoming popup as the phone window gains/loses focus or is minimized,
+            // so a ringing call surfaces the moment the user looks away from the phone.
+            _phoneWindow.Activated += (_, _) => _coordinator?.OnPhoneForegrounded();
+            _phoneWindow.Deactivated += (_, _) => _coordinator?.OnPhoneBackgrounded();
+            _phoneWindow.StateChanged += (_, _) =>
+            {
+                if (_phoneWindow?.WindowState == WindowState.Minimized)
+                    _coordinator?.OnPhoneBackgrounded();
+            };
             _phoneWindow.Show();
         }
         else

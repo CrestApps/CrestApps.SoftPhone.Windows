@@ -83,15 +83,10 @@ public partial class SettingsWindow : Window
 
         _app.SettingsStore.Save(user);
         _app.OnSettingsChanged();
-        DialogResult = true;
         Close();
     }
 
-    private void Cancel_Click(object sender, RoutedEventArgs e)
-    {
-        DialogResult = false;
-        Close();
-    }
+    private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
 
     // -------------------------------------------------------------- diagnostics
 

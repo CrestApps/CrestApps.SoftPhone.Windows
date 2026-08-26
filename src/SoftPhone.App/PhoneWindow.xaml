@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-        Title="CrestApps Soft Phone" Height="760" Width="420"
+        Title="Soft Phone" Height="760" Width="420"
         MinHeight="480" MinWidth="360"
         WindowStyle="None" ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
@@ -38,7 +38,7 @@
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
                     <Button x:Name="SettingsButton" Style="{StaticResource CaptionButton}" Content="&#xE713;"
-                            ToolTip="Settings" Click="SettingsButton_Click" />
+                            FontSize="15" ToolTip="Settings" Click="SettingsButton_Click" />
                     <Button x:Name="MinButton" Style="{StaticResource CaptionButton}" Content="&#xE921;"
                             ToolTip="Minimize" Click="MinButton_Click" />
                     <Button x:Name="MaxButton" Style="{StaticResource CaptionButton}" Content="&#xE922;"
