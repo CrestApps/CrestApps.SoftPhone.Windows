@@ -121,26 +121,12 @@ public sealed class TelephonyHubClient : IAsyncDisposable
             })
             .Build();
 
-        // Bind the incoming-call context loosely (raw JSON → lenient parse). The server's
-        // IncomingCallContext is richer/nested; strict binding to our CallContext could throw
-        // during argument binding, which would make SignalR silently drop the whole IncomingCall
-        // invocation (observed: CallStateChanged arrives, IncomingCall does not). Parsing the raw
-        // element ourselves guarantees the handler always fires.
-        conn.On<Call, JsonElement>("IncomingCall", (call, contextJson) =>
-        {
-            CallContext context;
-            try
-            {
-                context = JsonSerializer.Deserialize<CallContext>(contextJson.GetRawText(), ContractHelpers.Json)
-                          ?? new CallContext();
-            }
-            catch (Exception e)
-            {
-                _options.Log?.Invoke($"IncomingCall context parse failed (using empty context): {e.Message}");
-                context = new CallContext();
-            }
-            _callbacks.OnIncomingCall?.Invoke(call, context);
-        });
+        // Strict binding is correct here — an integration test (SignalRIncomingCallBindingTests)
+        // proves the .NET client binds the server's rich IncomingCallContext into our CallContext
+        // without dropping the invocation. If a real IncomingCall reaches this connection it fires;
+        // the SignalR logging below surfaces any binding warning if that assumption ever breaks.
+        conn.On<Call, CallContext>("IncomingCall", (call, context) =>
+            _callbacks.OnIncomingCall?.Invoke(call, context));
         conn.On<Call>("CallStateChanged", call =>
             _callbacks.OnCallStateChanged?.Invoke(call));
 
