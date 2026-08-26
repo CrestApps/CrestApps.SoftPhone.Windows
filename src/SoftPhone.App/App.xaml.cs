@@ -207,6 +207,20 @@ public partial class App : System.Windows.Application
         _coordinator?.HandleIncoming(call, context);
     }
 
+    /// <summary>
+    /// Called when the phone window is closed to the tray. Shows a one-time balloon so the
+    /// user learns the app is still running (near the clock) and will still ring.
+    /// </summary>
+    public void NotifyMinimizedToTray()
+    {
+        var settings = SettingsStore.Load();
+        if (settings.TrayHintShown) return;
+        _tray?.ShowBalloon("Soft Phone is still running",
+            "It stays here by the clock so incoming calls still ring. Right-click for Open, Settings, or Quit.");
+        settings.TrayHintShown = true;
+        SettingsStore.Save(settings);
+    }
+
     public void OnSettingsChanged()
     {
         BuildTray();

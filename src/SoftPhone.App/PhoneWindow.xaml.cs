@@ -44,6 +44,7 @@ public partial class PhoneWindow : Window
         {
             e.Cancel = true;
             Hide();
+            _app.NotifyMinimizedToTray();
         }
         base.OnClosing(e);
     }

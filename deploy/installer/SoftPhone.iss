@@ -22,6 +22,14 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
 AppPublisherURL=https://crestapps.com
+AppCopyright=© CrestApps. All rights reserved.
+; File-properties (Details tab) version info for the generated setup.exe.
+VersionInfoCompany={#AppPublisher}
+VersionInfoProductName={#AppName}
+VersionInfoDescription=Soft Phone Setup
+VersionInfoVersion={#AppVersion}
+VersionInfoProductVersion={#AppVersion}
+VersionInfoCopyright=© CrestApps. All rights reserved.
 DefaultDirName={localappdata}\Programs\Soft Phone
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes

@@ -1,10 +1,10 @@
 name: Release
 
 # Build all distributables (installer .exe, portable .zip, MSIX) with the correct version:
-#   • push a tag  vX.Y.Z         → build + attach to a GitHub Release + submit to the Store
-#   • run manually (workflow_dispatch, version input) → build artifacts only (no release/store)
-# The version is the single source of truth: it stamps the assemblies (SOFTPHONE_VERSION),
-# the MSIX manifest, and the installer/zip filenames.
+#   • push a tag  vX.Y.Z         → build + attach to a GitHub Release (downloadable)
+#   • run manually (workflow_dispatch, version input) → build artifacts only
+# No Microsoft Store dependency (that's publish-manual.yml). If code-signing secrets are set
+# (SIGNING_PFX_BASE64 + SIGNING_PFX_PASSWORD), the app exe, installer, and MSIX are signed.
 
 on:
   push:
@@ -18,16 +18,19 @@ on:
         type: string
 
 permissions:
-  contents: write # create the GitHub Release + upload assets
+  contents: write
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  # ---------------------------------------------------------- build everything
   build:
     runs-on: windows-latest
+    env:
+      # Job-level so step `if:` conditions can see whether signing is configured.
+      SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
+      SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
@@ -41,11 +44,7 @@ jobs:
         id: ver
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            V="${{ inputs.version }}"
-          else
-            V="${GITHUB_REF_NAME}"
-          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then V="${{ inputs.version }}"; else V="${GITHUB_REF_NAME}"; fi
           echo "version=${V#v}" >> "$GITHUB_OUTPUT"
 
       - name: Stamp MSIX manifest version
@@ -60,7 +59,14 @@ jobs:
           dotnet test tests/SoftPhone.Core.Tests/SoftPhone.Core.Tests.csproj -c Release --no-build
           dotnet test tests/SoftPhone.Notifications.Tests/SoftPhone.Notifications.Tests.csproj -c Release --no-build
 
-      # ---- Portable self-contained build + zip ----
+      - name: Decode signing certificate (if configured)
+        if: ${{ env.SIGNING_PFX_BASE64 != '' }}
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\sign.pfx", [Convert]::FromBase64String($env:SIGNING_PFX_BASE64))
+          "PFX_PATH=$env:RUNNER_TEMP\sign.pfx" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # ---- Portable self-contained build ----
       - name: Publish portable (self-contained, win-x64)
         env:
           SOFTPHONE_VERSION: ${{ steps.ver.outputs.version }}
@@ -68,6 +74,13 @@ jobs:
           dotnet publish src/SoftPhone.App/SoftPhone.App.csproj -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
           -o artifacts/portable/SoftPhone
+
+      - name: Sign app executable (if configured)
+        if: ${{ env.PFX_PATH != '' }}
+        shell: pwsh
+        run: |
+          $st = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          & $st sign /fd SHA256 /f "$env:PFX_PATH" /p "$env:SIGNING_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 "artifacts/portable/SoftPhone/CrestApps.SoftPhone.exe"
 
       - name: Package portable zip
         shell: pwsh
@@ -88,18 +101,16 @@ jobs:
           New-Item -ItemType Directory -Force -Path artifacts/dist | Out-Null
           Copy-Item "artifacts/installer/SoftPhone-Setup-v${{ steps.ver.outputs.version }}.exe" artifacts/dist/ -Force
 
-      # ---- MSIX (Store-upload bundle) ----
-      - name: Decode signing certificate (optional)
-        if: ${{ env.SIGNING_PFX_BASE64 != '' }}
-        env:
-          SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
+      - name: Sign installer (if configured)
+        if: ${{ env.PFX_PATH != '' }}
         shell: pwsh
         run: |
-          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\sign.pfx", [Convert]::FromBase64String($env:SIGNING_PFX_BASE64))
-          echo "PFX_PATH=$env:RUNNER_TEMP\sign.pfx" >> $env:GITHUB_ENV
+          $st = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          & $st sign /fd SHA256 /f "$env:PFX_PATH" /p "$env:SIGNING_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 "artifacts/dist/SoftPhone-Setup-v${{ steps.ver.outputs.version }}.exe"
 
+      # ---- MSIX (best-effort; never blocks the installer release) ----
       - name: Build MSIX bundle
-        continue-on-error: true # best-effort: the installer/zip release must not depend on MSIX
+        continue-on-error: true
         env:
           SOFTPHONE_VERSION: ${{ steps.ver.outputs.version }}
         run: >
@@ -110,16 +121,14 @@ jobs:
           -p:AppxPackageSigningEnabled=false
           -p:AppxPackageDir="${{ github.workspace }}\artifacts\msix\\"
 
-      - name: Sign installer + sideload MSIX (optional)
+      - name: Sign MSIX (if configured)
         if: ${{ env.PFX_PATH != '' }}
         continue-on-error: true
-        env:
-          SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
         shell: pwsh
         run: |
-          $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1).FullName
-          Get-ChildItem artifacts/dist/*.exe, artifacts/msix -Recurse -Include *.msix,*.msixbundle | ForEach-Object {
-            & $signtool sign /fd SHA256 /a /f "$env:PFX_PATH" /p "$env:SIGNING_PFX_PASSWORD" $_.FullName
+          $st = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          Get-ChildItem artifacts/msix -Recurse -Include *.msix,*.msixbundle | ForEach-Object {
+            & $st sign /fd SHA256 /f "$env:PFX_PATH" /p "$env:SIGNING_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 $_.FullName
           }
 
       - name: Upload build artifacts
@@ -133,7 +142,6 @@ jobs:
             artifacts/msix/**/*.msixupload
           if-no-files-found: error
 
-  # ---------------------------------------------------------- GitHub Release (tag only)
   github-release:
     needs: build
     if: startsWith(github.ref, 'refs/tags/')

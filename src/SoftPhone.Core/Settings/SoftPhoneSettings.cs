@@ -37,6 +37,9 @@ public sealed class SoftPhoneSettings
     /// <summary>Whether the Settings window reveals the diagnostics tools.</summary>
     public bool Diagnostics { get; set; }
 
+    /// <summary>True once we've shown the "still running in the tray" hint (show it only once).</summary>
+    public bool TrayHintShown { get; set; }
+
     public SoftPhoneSettings Clone() => new()
     {
         Domain = Domain,
@@ -52,5 +55,6 @@ public sealed class SoftPhoneSettings
         },
         Collapsed = Collapsed,
         Diagnostics = Diagnostics,
+        TrayHintShown = TrayHintShown,
     };
 }
