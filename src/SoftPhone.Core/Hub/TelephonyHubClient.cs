@@ -1,6 +1,8 @@
 using System.Net;
+using System.Text.Json;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.Extensions.Logging;
 using SoftPhone.Core.Contract;
 
 namespace SoftPhone.Core.Hub;
@@ -15,6 +17,30 @@ internal sealed class InfiniteRetryPolicy : IRetryPolicy
 {
     public TimeSpan? NextRetryDelay(RetryContext retryContext) =>
         TimeSpan.FromSeconds(Math.Min(30, Math.Pow(2, Math.Min(retryContext.PreviousRetryCount, 5))));
+}
+
+/// <summary>Forwards SignalR's own log (warnings/errors — e.g. argument-bind failures) to a callback.</summary>
+internal sealed class CallbackLoggerProvider : ILoggerProvider
+{
+    private readonly Action<string> _sink;
+    public CallbackLoggerProvider(Action<string> sink) => _sink = sink;
+    public ILogger CreateLogger(string categoryName) => new CallbackLogger(categoryName, _sink);
+    public void Dispose() { }
+
+    private sealed class CallbackLogger : ILogger
+    {
+        private readonly string _category;
+        private readonly Action<string> _sink;
+        public CallbackLogger(string category, Action<string> sink) { _category = category; _sink = sink; }
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (!IsEnabled(logLevel)) return;
+            var shortCat = _category.Contains('.') ? _category[(_category.LastIndexOf('.') + 1)..] : _category;
+            _sink($"SignalR[{logLevel}] {shortCat}: {formatter(state, exception)}{(exception is null ? "" : " | " + exception.Message)}");
+        }
+    }
 }
 
 public sealed class HubClientCallbacks
@@ -39,6 +65,9 @@ public sealed class HubClientOptions
     /// SignalR sends the token; when omitted, negotiation relies on the cookie.
     /// </summary>
     public Func<Task<string?>>? AccessTokenProvider { get; init; }
+
+    /// <summary>Optional sink for SignalR client diagnostics (warnings/errors) and bind notes.</summary>
+    public Action<string>? Log { get; init; }
 }
 
 /// <summary>
@@ -82,10 +111,36 @@ public sealed class TelephonyHubClient : IAsyncDisposable
                 }
             })
             .WithAutomaticReconnect(new InfiniteRetryPolicy())
+            .ConfigureLogging(logging =>
+            {
+                if (_options.Log is not null)
+                {
+                    logging.AddProvider(new CallbackLoggerProvider(_options.Log));
+                    logging.SetMinimumLevel(LogLevel.Warning);
+                }
+            })
             .Build();
 
-        conn.On<Call, CallContext>("IncomingCall", (call, context) =>
-            _callbacks.OnIncomingCall?.Invoke(call, context));
+        // Bind the incoming-call context loosely (raw JSON → lenient parse). The server's
+        // IncomingCallContext is richer/nested; strict binding to our CallContext could throw
+        // during argument binding, which would make SignalR silently drop the whole IncomingCall
+        // invocation (observed: CallStateChanged arrives, IncomingCall does not). Parsing the raw
+        // element ourselves guarantees the handler always fires.
+        conn.On<Call, JsonElement>("IncomingCall", (call, contextJson) =>
+        {
+            CallContext context;
+            try
+            {
+                context = JsonSerializer.Deserialize<CallContext>(contextJson.GetRawText(), ContractHelpers.Json)
+                          ?? new CallContext();
+            }
+            catch (Exception e)
+            {
+                _options.Log?.Invoke($"IncomingCall context parse failed (using empty context): {e.Message}");
+                context = new CallContext();
+            }
+            _callbacks.OnIncomingCall?.Invoke(call, context);
+        });
         conn.On<Call>("CallStateChanged", call =>
             _callbacks.OnCallStateChanged?.Invoke(call));
 

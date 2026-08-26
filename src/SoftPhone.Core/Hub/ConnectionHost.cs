@@ -88,7 +88,7 @@ public sealed class ConnectionHost : IAsyncDisposable
         }
 
         _client = new TelephonyHubClient(
-            new HubClientOptions { HubUrl = _config.HubUrl, Cookies = _cookies },
+            new HubClientOptions { HubUrl = _config.HubUrl, Cookies = _cookies, Log = _log },
             new HubClientCallbacks
             {
                 OnIncomingCall = (call, context) =>
