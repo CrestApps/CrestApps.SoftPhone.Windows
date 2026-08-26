@@ -1,13 +1,21 @@
 name: Release
 
-# Push a tag like v1.0.0 to build, package + sign the MSIX, submit to the Microsoft Store,
-# and cut a GitHub Release. The tag is the single source of version truth: the leading "v"
-# is stripped and stamped into the assembly (SOFTPHONE_VERSION) and the appxmanifest.
+# Build all distributables (installer .exe, portable .zip, MSIX) with the correct version:
+#   • push a tag  vX.Y.Z         → build + attach to a GitHub Release + submit to the Store
+#   • run manually (workflow_dispatch, version input) → build artifacts only (no release/store)
+# The version is the single source of truth: it stamps the assemblies (SOFTPHONE_VERSION),
+# the MSIX manifest, and the installer/zip filenames.
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build, e.g. 1.0.0 (no leading v)'
+        required: true
+        type: string
 
 permissions:
   contents: write # create the GitHub Release + upload assets
@@ -17,7 +25,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ---------------------------------------------------------- build + package
+  # ---------------------------------------------------------- build everything
   build:
     runs-on: windows-latest
     outputs:
@@ -29,15 +37,21 @@ jobs:
           dotnet-version: '8.0.x'
       - uses: microsoft/setup-msbuild@v2
 
-      - name: Derive version from tag
+      - name: Derive version (tag or manual input)
         id: ver
         shell: bash
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            V="${{ inputs.version }}"
+          else
+            V="${GITHUB_REF_NAME}"
+          fi
+          echo "version=${V#v}" >> "$GITHUB_OUTPUT"
 
       - name: Stamp MSIX manifest version
         run: pwsh scripts/Set-Version.ps1 -Version "${{ steps.ver.outputs.version }}"
 
-      - name: Restore + unit tests
+      - name: Restore + build + unit tests
         env:
           SOFTPHONE_VERSION: ${{ steps.ver.outputs.version }}
         run: |
@@ -46,7 +60,36 @@ jobs:
           dotnet test tests/SoftPhone.Core.Tests/SoftPhone.Core.Tests.csproj -c Release --no-build
           dotnet test tests/SoftPhone.Notifications.Tests/SoftPhone.Notifications.Tests.csproj -c Release --no-build
 
-      - name: Decode signing certificate (sideload MSIX)
+      # ---- Portable self-contained build + zip ----
+      - name: Publish portable (self-contained, win-x64)
+        env:
+          SOFTPHONE_VERSION: ${{ steps.ver.outputs.version }}
+        run: >
+          dotnet publish src/SoftPhone.App/SoftPhone.App.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          -o artifacts/portable/SoftPhone
+
+      - name: Package portable zip
+        shell: pwsh
+        run: |
+          Remove-Item artifacts/portable/SoftPhone/*.pdb, artifacts/portable/SoftPhone/*.xml -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path artifacts/dist | Out-Null
+          Compress-Archive -Path artifacts/portable/SoftPhone -DestinationPath "artifacts/dist/SoftPhone-portable-v${{ steps.ver.outputs.version }}-win-x64.zip" -Force
+
+      # ---- Inno Setup installer ----
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DPayloadDir=$PWD\artifacts\portable\SoftPhone" "deploy\installer\SoftPhone.iss"
+          New-Item -ItemType Directory -Force -Path artifacts/dist | Out-Null
+          Copy-Item "artifacts/installer/SoftPhone-Setup-v${{ steps.ver.outputs.version }}.exe" artifacts/dist/ -Force
+
+      # ---- MSIX (Store-upload bundle) ----
+      - name: Decode signing certificate (optional)
         if: ${{ env.SIGNING_PFX_BASE64 != '' }}
         env:
           SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
@@ -55,81 +98,71 @@ jobs:
           [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\sign.pfx", [Convert]::FromBase64String($env:SIGNING_PFX_BASE64))
           echo "PFX_PATH=$env:RUNNER_TEMP\sign.pfx" >> $env:GITHUB_ENV
 
-      - name: Build MSIX bundle (Store upload package)
+      - name: Build MSIX bundle
         env:
           SOFTPHONE_VERSION: ${{ steps.ver.outputs.version }}
         run: >
           msbuild packaging/SoftPhone.Package/SoftPhone.Package.wapproj
-          -p:Configuration=Release
-          -p:Platform=x64
+          -p:Configuration=Release -p:Platform=x64
           -p:UapAppxPackageBuildMode=StoreUpload
-          -p:AppxBundlePlatforms="x64|arm64"
-          -p:AppxBundle=Always
+          -p:AppxBundlePlatforms="x64|arm64" -p:AppxBundle=Always
           -p:AppxPackageSigningEnabled=false
           -p:AppxPackageDir="${{ github.workspace }}\artifacts\msix\\"
 
-      - name: Sign sideload MSIX (optional, for Intune/sideload distribution)
+      - name: Sign installer + sideload MSIX (optional)
         if: ${{ env.PFX_PATH != '' }}
         env:
           SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
         shell: pwsh
         run: |
           $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1).FullName
-          Get-ChildItem "${{ github.workspace }}\artifacts\msix" -Recurse -Include *.msix,*.msixbundle | ForEach-Object {
+          Get-ChildItem artifacts/dist/*.exe, artifacts/msix -Recurse -Include *.msix,*.msixbundle | ForEach-Object {
             & $signtool sign /fd SHA256 /a /f "$env:PFX_PATH" /p "$env:SIGNING_PFX_PASSWORD" $_.FullName
           }
 
-      - name: Upload package artifacts
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: msix
-          path: artifacts/msix/**/*
+          name: distributables-v${{ steps.ver.outputs.version }}
+          path: |
+            artifacts/dist/**
+            artifacts/msix/**/*.msix
+            artifacts/msix/**/*.msixbundle
+            artifacts/msix/**/*.msixupload
           if-no-files-found: error
 
-  # ---------------------------------------------------------- GitHub Release
+  # ---------------------------------------------------------- GitHub Release (tag only)
   github-release:
     needs: build
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: msix
+          name: distributables-v${{ needs.build.outputs.version }}
           path: artifacts
       - uses: softprops/action-gh-release@v2
         with:
           name: v${{ needs.build.outputs.version }}
           generate_release_notes: true
           files: |
+            artifacts/dist/**
             artifacts/**/*.msix
             artifacts/**/*.msixbundle
-            artifacts/**/*.msixupload
 
-  # ---------------------------------------------------------- Microsoft Store
-  # Requires (repo secrets): PARTNER_TENANT_ID, PARTNER_CLIENT_ID, PARTNER_CLIENT_SECRET,
-  # STORE_APP_ID. See docs/RELEASING.md for the one-time Partner Center + Azure AD setup.
+  # ---------------------------------------------------------- Microsoft Store (tag only)
+  # Requires secrets: PARTNER_TENANT_ID, PARTNER_CLIENT_ID, PARTNER_CLIENT_SECRET, STORE_APP_ID.
   store-submit:
     needs: build
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
-    environment: production # add a required reviewer to gate Store pushes
+    environment: production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: msix
+          name: distributables-v${{ needs.build.outputs.version }}
           path: artifacts
-
-      - name: Guard — required Store secrets present
-        shell: pwsh
-        run: |
-          foreach ($n in 'PARTNER_TENANT_ID','PARTNER_CLIENT_ID','PARTNER_CLIENT_SECRET','STORE_APP_ID') {
-            if (-not (Test-Path "env:$n")) { throw "Missing secret $n — see docs/RELEASING.md." }
-          }
-        env:
-          PARTNER_TENANT_ID: ${{ secrets.PARTNER_TENANT_ID }}
-          PARTNER_CLIENT_ID: ${{ secrets.PARTNER_CLIENT_ID }}
-          PARTNER_CLIENT_SECRET: ${{ secrets.PARTNER_CLIENT_SECRET }}
-          STORE_APP_ID: ${{ secrets.STORE_APP_ID }}
-
       - name: Submit to the Store (StoreBroker)
         shell: pwsh
         env:

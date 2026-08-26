@@ -10,11 +10,18 @@ in the app shows the running version + build time.
 
 - **`ci.yml`** (every PR/push): restore → build → unit tests (Core + Notifications) →
   MSIX package (unsigned artifact) → FlaUI UI tests.
-- **`release.yml`** (push tag `vX.Y.Z`): stamp version → build + test → build the MSIX
-  Store-upload bundle → optionally sign a sideload MSIX → submit to the Store → cut a GitHub
-  Release with the packages attached.
-- **`publish-manual.yml`** (Actions → Run workflow): build + submit a given version on
-  demand (a checkbox controls whether it auto-commits the Store submission).
+- **`release.yml`** — builds every distributable with the correct version:
+  - **on tag `vX.Y.Z`:** stamp version → build + test → **portable zip**, **installer
+    `SoftPhone-Setup-vX.Y.Z.exe`** (Inno Setup), and the **MSIX** Store-upload bundle →
+    (optionally sign) → cut a **GitHub Release** with all of them attached → submit to the Store.
+  - **manual (Actions → Release → Run workflow, version input):** builds the same
+    installer / portable / MSIX artifacts (downloadable from the run) **without** creating a
+    Release or submitting to the Store — for smoke-testing a build or handing out a one-off.
+- **`publish-manual.yml`** (Actions → Run workflow): build + submit a given version to the
+  **Store** on demand (a checkbox controls whether it auto-commits the submission).
+
+Every distributable is stamped from one version: assemblies (`SOFTPHONE_VERSION`), the MSIX
+manifest (`scripts/Set-Version.ps1`), and the installer/zip filenames.
 
 ## Cutting a release
 
@@ -22,6 +29,9 @@ in the app shows the running version + build time.
 git tag v1.0.0
 git push origin v1.0.0
 ```
+
+To build the installer/packages **without** releasing (e.g. a pilot drop): Actions →
+**Release** → **Run workflow** → enter the version → download the artifacts from the run.
 
 ## One-time account & credentials setup (manual)
 

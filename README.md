@@ -24,14 +24,24 @@ normal site login inside the app — there's no separate password.
 
 ## Install
 
-- **Microsoft Store:** install "Soft Phone" and it auto-updates.
-- **Sideload (dev/enterprise):** install the signed `.msix` (see
-  [Enterprise deployment](docs/ENTERPRISE-DEPLOYMENT.md)).
+Choose whichever fits you. Release builds (installer, portable zip, MSIX) are attached to
+each [GitHub Release](../../releases).
 
-On first run, enter your tenant domain (e.g. `phone.example.com`). The app validates it,
-you sign in, and the phone is ready. It starts with Windows and lives in the system tray;
-right-click the tray icon for **Open phone**, **Settings**, and **Quit**. Closing the phone
-window keeps the app running in the tray so calls still ring.
+| Method | Best for | How |
+|---|---|---|
+| **Microsoft Store** | Individuals — auto-updates | Install "Soft Phone" from the Store (once published). |
+| **Installer (`SoftPhone-Setup-vX.Y.Z.exe`)** | Anyone — download & run | Double-click; installs per-user (no admin). The wizard asks for your **tenant domain** and preferences, so the app is ready on first launch. |
+| **Portable zip** | No-install / quick pilots | Unzip and run `CrestApps.SoftPhone.exe`. Self-contained (no .NET needed). |
+| **Intune (managed fleet)** | IT-managed devices | Push the Win32 package + locked domain config — see [`deploy/intune/`](deploy/intune/README.md). |
+| **MSIX sideload / Group Policy** | Enterprise | See [Enterprise deployment](docs/ENTERPRISE-DEPLOYMENT.md). |
+
+The installer and portable builds aren't code-signed yet, so the first launch may show
+SmartScreen — click **More info → Run anyway**. The Store build is signed by Microsoft.
+
+On first run (if not pre-configured), enter your tenant domain (e.g. `phone.example.com`).
+The app validates it, you sign in, and the phone is ready. It starts with Windows and lives
+in the system tray; right-click the tray icon for **Open phone**, **Settings**, and **Quit**.
+Closing the phone window keeps the app running in the tray so calls still ring.
 
 ## Settings
 
