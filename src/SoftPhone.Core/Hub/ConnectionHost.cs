@@ -16,6 +16,7 @@ namespace SoftPhone.Core.Hub;
 public sealed class ConnectionHost : IAsyncDisposable
 {
     private readonly Func<string, Task<CookieContainer>> _cookieProvider;
+    private readonly Action<string>? _log;
 
     private TelephonyHubClient? _client;
     private ExtensionConfig? _config;
@@ -33,8 +34,11 @@ public sealed class ConnectionHost : IAsyncDisposable
     /// Supplies the tenant cookies for a domain (in the app, reads them from the hidden
     /// WebView2 cookie source).
     /// </param>
-    public ConnectionHost(Func<string, Task<CookieContainer>> cookieProvider) =>
+    public ConnectionHost(Func<string, Task<CookieContainer>> cookieProvider, Action<string>? log = null)
+    {
         _cookieProvider = cookieProvider;
+        _log = log;
+    }
 
     private void SetStatus(ConnectionStatus status, string? detail = null)
     {
@@ -55,6 +59,7 @@ public sealed class ConnectionHost : IAsyncDisposable
         try
         {
             _cookies = await _cookieProvider(domain);
+            _log?.Invoke($"Background: read {_cookies.GetAllCookies().Count} cookie(s) for {domain}.");
         }
         catch (Exception e)
         {
@@ -66,6 +71,7 @@ public sealed class ConnectionHost : IAsyncDisposable
         try
         {
             _config = await configClient.FetchExtensionConfigAsync(domain, ct);
+            _log?.Invoke($"Background: config ok; hubUrl={_config.HubUrl}; user={_config.DisplayName}.");
         }
         catch (ConfigException e)
         {
@@ -79,8 +85,16 @@ public sealed class ConnectionHost : IAsyncDisposable
             new HubClientOptions { HubUrl = _config.HubUrl, Cookies = _cookies },
             new HubClientCallbacks
             {
-                OnIncomingCall = (call, context) => IncomingCall?.Invoke(call, context),
-                OnCallStateChanged = call => CallStateChanged?.Invoke(call),
+                OnIncomingCall = (call, context) =>
+                {
+                    _log?.Invoke($"Background: hub IncomingCall {call.CallId} from {call.From}.");
+                    IncomingCall?.Invoke(call, context);
+                },
+                OnCallStateChanged = call =>
+                {
+                    _log?.Invoke($"Background: hub CallStateChanged {call.CallId} state={call.State}.");
+                    CallStateChanged?.Invoke(call);
+                },
                 OnStatus = (status, detail) => SetStatus(status, detail),
             });
 
@@ -95,15 +109,38 @@ public sealed class ConnectionHost : IAsyncDisposable
         }
 
         // Catch an in-flight ring on connect (contract §B).
+        await CheckCurrentOfferAsync(ct);
+    }
+
+    /// <summary>
+    /// Poll the current-incoming-offer endpoint (plain HTTP + cookie) and raise IncomingCall
+    /// if a call is ringing. This is a robust fallback that does NOT depend on the real-time
+    /// hub event reaching this secondary connection — used on connect and whenever the phone
+    /// window is minimized/backgrounded, so a ringing call always surfaces our popup.
+    /// </summary>
+    public async Task CheckCurrentOfferAsync(CancellationToken ct = default)
+    {
+        if (_domain is null) return;
         try
         {
-            var offer = await configClient.FetchCurrentOfferAsync(_config.CurrentIncomingOfferUrl, ct);
-            if (offer is not null)
-                IncomingCall?.Invoke(offer.Call, offer.Context);
+            var cookies = await _cookieProvider(_domain);
+            var configClient = ConfigClient.WithCookies(cookies);
+            var config = _config ?? await configClient.FetchExtensionConfigAsync(_domain, ct);
+            _config = config;
+            var offer = await configClient.FetchCurrentOfferAsync(config.CurrentIncomingOfferUrl, ct);
+            if (offer?.Call is not null)
+            {
+                _log?.Invoke($"Background: current-offer ringing {offer.Call.CallId} from {offer.Call.From}.");
+                IncomingCall?.Invoke(offer.Call, offer.Context ?? new CallContext());
+            }
+            else
+            {
+                _log?.Invoke("Background: current-offer check — nothing ringing.");
+            }
         }
-        catch
+        catch (Exception e)
         {
-            // Non-fatal: the connection is up even if the offer probe fails.
+            _log?.Invoke($"Background: current-offer check failed: {e.Message}");
         }
     }
 

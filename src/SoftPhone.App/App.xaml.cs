@@ -70,7 +70,7 @@ public partial class App : System.Windows.Application
 
         StartupManager.SetEnabled(ResolveSettings().StartWithWindows.Value);
 
-        _connection = new ConnectionHost(domain => CookieSource.ReadCookiesAsync(domain));
+        _connection = new ConnectionHost(domain => CookieSource.ReadCookiesAsync(domain), Log.Info);
         _connection.StatusChanged += (s, d) => SetConnectionStatus(s, d);
         _connection.IncomingCall += (call, ctx) => Dispatcher.Invoke(() => _coordinator?.HandleIncoming(call, ctx));
         _connection.CallStateChanged += call => Dispatcher.Invoke(() => _coordinator?.HandleStateChanged(call));
@@ -122,11 +122,11 @@ public partial class App : System.Windows.Application
             // Show/hide the incoming popup as the phone window gains/loses focus or is minimized,
             // so a ringing call surfaces the moment the user looks away from the phone.
             _phoneWindow.Activated += (_, _) => _coordinator?.OnPhoneForegrounded();
-            _phoneWindow.Deactivated += (_, _) => _coordinator?.OnPhoneBackgrounded();
+            _phoneWindow.Deactivated += (_, _) => PhoneWentBackground();
             _phoneWindow.StateChanged += (_, _) =>
             {
                 if (_phoneWindow?.WindowState == WindowState.Minimized)
-                    _coordinator?.OnPhoneBackgrounded();
+                    PhoneWentBackground();
             };
             _phoneWindow.Show();
         }
@@ -176,6 +176,23 @@ public partial class App : System.Windows.Application
     {
         try { await _connection!.ConnectAsync(domain); }
         catch (Exception ex) { Log.Error("Background connect failed", ex); }
+    }
+
+    /// <summary>
+    /// The phone window was minimized or lost focus: show the popup for any call we already
+    /// know about, and actively re-check the current-incoming-offer endpoint so a ringing call
+    /// surfaces even if the real-time hub event never reached our background connection.
+    /// </summary>
+    private void PhoneWentBackground()
+    {
+        _coordinator?.OnPhoneBackgrounded();
+        _ = CheckOfferSafeAsync();
+    }
+
+    private async Task CheckOfferSafeAsync()
+    {
+        try { if (_connection is not null) await _connection.CheckCurrentOfferAsync(); }
+        catch (Exception ex) { Log.Error("current-offer check failed", ex); }
     }
 
     private void AnswerCall(string callId)
