@@ -88,7 +88,7 @@ packaging project on Windows with the Windows SDK — see
 
 ## Tech
 
-.NET 8 · C# · WPF · WebView2 · SignalR .NET client · H.NotifyIcon · MSIX · xUnit · FlaUI ·
+.NET 10 · C# · WPF · WebView2 · SignalR .NET client · H.NotifyIcon · MSIX · xUnit · FlaUI ·
 GitHub Actions.
 
 ## Releasing

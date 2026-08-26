@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Restore
         run: dotnet restore CrestApps.SoftPhone.Windows.sln
@@ -46,39 +46,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
       - name: Build app (Debug, for the UI tests to launch)
         run: dotnet build src/SoftPhone.App/SoftPhone.App.csproj -c Debug
       - name: UI tests (FlaUI)
         run: dotnet test tests/SoftPhone.UiTests/SoftPhone.UiTests.csproj -c Debug --logger "trx;LogFileName=ui.trx"
 
-  # ------------------------------------------------ MSIX package (unsigned artifact)
-  package:
-    runs-on: windows-latest
-    needs: build-test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-      - uses: microsoft/setup-msbuild@v2
-
-      - name: Restore (msbuild)
-        run: msbuild packaging/SoftPhone.Package/SoftPhone.Package.wapproj -t:Restore -p:Configuration=Release -p:Platform=x64
-
-      - name: Build MSIX (unsigned, sideload)
-        run: >
-          msbuild packaging/SoftPhone.Package/SoftPhone.Package.wapproj
-          -p:Configuration=Release
-          -p:Platform=x64
-          -p:UapAppxPackageBuildMode=SideloadOnly
-          -p:AppxBundle=Never
-          -p:AppxPackageSigningEnabled=false
-          -p:AppxPackageDir="${{ github.workspace }}\artifacts\msix\\"
-
-      - name: Upload MSIX artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: msix-unsigned
-          path: artifacts/msix/**/*.msix
-          if-no-files-found: warn
+  # The MSIX package is built (best-effort) in release.yml, gated on STORE_APP_ID — it isn't
+  # needed until the Microsoft Store account is set up, so it's kept out of CI to avoid noise.

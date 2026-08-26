@@ -51,7 +51,7 @@ public sealed class AppHost : IDisposable
 
         foreach (var config in new[] { "Debug", "Release" })
         {
-            var candidate = Path.Combine(dir.FullName, "src", "SoftPhone.App", "bin", config, "net8.0-windows", "CrestApps.SoftPhone.exe");
+            var candidate = Path.Combine(dir.FullName, "src", "SoftPhone.App", "bin", config, "net10.0-windows", "CrestApps.SoftPhone.exe");
             if (File.Exists(candidate)) return candidate;
         }
         throw new FileNotFoundException("Built app exe not found. Build SoftPhone.App first.");

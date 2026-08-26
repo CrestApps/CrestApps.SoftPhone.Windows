@@ -45,6 +45,10 @@ UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.17763
+; Upgrades: same AppId installs over the previous version (old files removed). Close the
+; running tray app first (Restart Manager) so its files can be replaced, then relaunch.
+CloseApplications=yes
+RestartApplications=no
 
 [Files]
 Source: "{#PayloadDir}\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
@@ -87,6 +91,23 @@ begin
   PrefsPage.Values[2] := False;
 end;
 
+function SettingsPath(): String;
+begin
+  Result := ExpandConstant('{userappdata}\CrestApps\SoftPhone\settings.json');
+end;
+
+{ True on an upgrade/reinstall where the user already has settings. }
+function IsConfigured(): Boolean;
+begin
+  Result := FileExists(SettingsPath());
+end;
+
+{ On an upgrade, skip the domain + preferences pages and keep the user's existing settings. }
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := IsConfigured() and ((PageID = DomainPage.ID) or (PageID = PrefsPage.ID));
+end;
+
 { Basic domain validation: non-empty and looks like a host (has a dot, no spaces). }
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
@@ -126,7 +147,9 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   dir, path, json, domain: String;
 begin
-  if CurStep = ssPostInstall then
+  { First install only: write the collected settings. On an upgrade, IsConfigured() is true
+    and we leave the existing settings.json untouched so preferences aren't lost. }
+  if (CurStep = ssPostInstall) and (not IsConfigured()) then
   begin
     domain := NormalizeDomain(DomainPage.Values[0]);
     dir := ExpandConstant('{userappdata}\CrestApps\SoftPhone');
