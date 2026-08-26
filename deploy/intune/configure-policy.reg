@@ -1,14 +1,18 @@
 Windows Registry Editor Version 5.00
 
-; Managed configuration for Soft Phone (read by the app's PolicyProvider).
-; Pre-fills and LOCKS the tenant domain so pilot users never type it.
-; Deploy via Intune (Devices > Configuration > registry / OMA-URI) or Group Policy.
+; OPTIONAL managed configuration for Soft Phone (read by the app's PolicyProvider).
 ;
-; >>> Replace phone.example.com with your real production tenant domain. <<<
-; For the dev pilot you can use: dialpad-dev.crestapps.online
+; The app never ships with a domain — by default every user enters and validates their own
+; tenant domain on first run. This template is only for a SINGLE-ORG fleet where an admin
+; wants to set THEIR organization's own domain for all their users, so those users skip the
+; prompt. Omit it and the app simply asks each user for the domain (the normal behavior).
+;
+; >>> Set "Domain" to YOUR organization's tenant domain before deploying. <<<
+; Deploy via Intune (Devices > Configuration > registry / OMA-URI) or Group Policy.
+; AllowUserOverrideDomain=1 makes the domain an editable default instead of a locked value.
 
 [HKEY_LOCAL_MACHINE\SOFTWARE\Policies\CrestApps\SoftPhone]
-"Domain"="phone.example.com"
+"Domain"="your-tenant-domain.example.com"
 "AllowUserOverrideDomain"=dword:00000000
 "StartWithWindows"=dword:00000001
 "RingtoneEnabled"=dword:00000001

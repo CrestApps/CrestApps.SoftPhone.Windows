@@ -10,15 +10,18 @@ in the app shows the running version + build time.
 
 - **`ci.yml`** (every PR/push): restore → build → unit tests (Core + Notifications) →
   MSIX package (unsigned artifact) → FlaUI UI tests.
-- **`release.yml`** — builds every distributable with the correct version:
+- **`release.yml`** — builds every distributable with the correct version. It does **not**
+  touch the Store, so it produces clean, downloadable releases even before the Partner Center
+  account exists:
   - **on tag `vX.Y.Z`:** stamp version → build + test → **portable zip**, **installer
-    `SoftPhone-Setup-vX.Y.Z.exe`** (Inno Setup), and the **MSIX** Store-upload bundle →
-    (optionally sign) → cut a **GitHub Release** with all of them attached → submit to the Store.
+    `SoftPhone-Setup-vX.Y.Z.exe`** (Inno Setup), and (best-effort) the **MSIX** bundle →
+    cut a **GitHub Release** with them attached.
   - **manual (Actions → Release → Run workflow, version input):** builds the same
-    installer / portable / MSIX artifacts (downloadable from the run) **without** creating a
-    Release or submitting to the Store — for smoke-testing a build or handing out a one-off.
-- **`publish-manual.yml`** (Actions → Run workflow): build + submit a given version to the
-  **Store** on demand (a checkbox controls whether it auto-commits the submission).
+    installer / portable / MSIX artifacts (downloadable from the run) without creating a Release.
+  The MSIX step is best-effort — a packaging hiccup never blocks the installer/zip release.
+- **`publish-manual.yml`** (Actions → Run workflow): the Store-only path — build + submit a
+  given version to the **Microsoft Store** on demand (run this once the account is approved and
+  the Store secrets are set; a checkbox controls whether it auto-commits the submission).
 
 Every distributable is stamped from one version: assemblies (`SOFTPHONE_VERSION`), the MSIX
 manifest (`scripts/Set-Version.ps1`), and the installer/zip filenames.

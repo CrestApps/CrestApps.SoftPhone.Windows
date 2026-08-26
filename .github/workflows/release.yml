@@ -99,6 +99,7 @@ jobs:
           echo "PFX_PATH=$env:RUNNER_TEMP\sign.pfx" >> $env:GITHUB_ENV
 
       - name: Build MSIX bundle
+        continue-on-error: true # best-effort: the installer/zip release must not depend on MSIX
         env:
           SOFTPHONE_VERSION: ${{ steps.ver.outputs.version }}
         run: >
@@ -111,6 +112,7 @@ jobs:
 
       - name: Sign installer + sideload MSIX (optional)
         if: ${{ env.PFX_PATH != '' }}
+        continue-on-error: true
         env:
           SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
         shell: pwsh
@@ -150,24 +152,6 @@ jobs:
             artifacts/**/*.msix
             artifacts/**/*.msixbundle
 
-  # ---------------------------------------------------------- Microsoft Store (tag only)
-  # Requires secrets: PARTNER_TENANT_ID, PARTNER_CLIENT_ID, PARTNER_CLIENT_SECRET, STORE_APP_ID.
-  store-submit:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: windows-latest
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: distributables-v${{ needs.build.outputs.version }}
-          path: artifacts
-      - name: Submit to the Store (StoreBroker)
-        shell: pwsh
-        env:
-          PARTNER_TENANT_ID: ${{ secrets.PARTNER_TENANT_ID }}
-          PARTNER_CLIENT_ID: ${{ secrets.PARTNER_CLIENT_ID }}
-          PARTNER_CLIENT_SECRET: ${{ secrets.PARTNER_CLIENT_SECRET }}
-          STORE_APP_ID: ${{ secrets.STORE_APP_ID }}
-        run: pwsh scripts/Submit-Store.ps1 -PackagePath "artifacts"
+  # Microsoft Store submission is intentionally NOT here — it's a separate, opt-in workflow
+  # (publish-manual.yml) so tagging always produces a clean, downloadable installer release
+  # even before the Partner Center account is approved / secrets are configured.

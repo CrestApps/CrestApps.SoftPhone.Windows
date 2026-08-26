@@ -130,7 +130,7 @@ public static class DiagnosticsRunner
         }
         catch (ConfigException ce) when (ce.Kind == ConfigErrorKind.NotEnabled)
         {
-            Set(r, s1, DiagnosticStatus.Fail, "Feature not enabled on tenant (404). Enable the Soft Phone Extension feature.", emit);
+            Set(r, s1, DiagnosticStatus.Fail, "No soft phone found at this domain (404) — likely the wrong domain, or the Soft Phone Extension feature isn't enabled on the tenant.", emit);
             return r.Snapshot(true);
         }
         catch (ConfigException ce) when (ce.Kind == ConfigErrorKind.Unauthenticated)

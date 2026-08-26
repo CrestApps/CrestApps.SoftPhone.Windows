@@ -194,7 +194,9 @@ public partial class PhoneWindow : Window
                     DomainConfigured?.Invoke(domain);
                     break;
                 case DomainValidationResult.FeatureNotEnabled:
-                    ShowSetupMessage("Reached the site, but the Soft Phone Extension feature isn't enabled on this tenant. Ask your administrator to enable it, then try again.", isError: true);
+                    // 404: reached a site, but there's no soft phone here — almost always the
+                    // wrong domain. (If it really is the right one, the feature may be off.)
+                    ShowSetupMessage("This doesn't look like the right domain — we couldn't find a soft phone here. Double-check the domain you entered. If it's correct, ask your administrator to enable the Soft Phone Extension feature.", isError: true);
                     break;
                 default:
                     ShowSetupMessage("Couldn't reach that domain. Check the spelling and your connection, then try again.", isError: true);
