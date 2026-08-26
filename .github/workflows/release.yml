@@ -33,9 +33,10 @@ jobs:
     # (and drop this line) if you'd rather the build never wait.
     environment: production
     env:
-      # Job-level so step `if:` conditions can see whether signing is configured.
+      # Job-level so step `if:` conditions can see whether signing / the Store are configured.
       SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
       SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
+      STORE_APP_ID: ${{ secrets.STORE_APP_ID }}
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
@@ -113,21 +114,26 @@ jobs:
           $st = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1).FullName
           & $st sign /fd SHA256 /f "$env:PFX_PATH" /p "$env:SIGNING_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 "artifacts/dist/SoftPhone-Setup-v${{ steps.ver.outputs.version }}.exe"
 
-      # ---- MSIX (best-effort; never blocks the installer release) ----
+      # ---- MSIX — only when the Store is configured (STORE_APP_ID set); best-effort ----
+      # Until then it's skipped, so tag/manual builds stay clean (the installer + zip are the
+      # active distributables). Enable by adding the STORE_APP_ID secret once Partner Center
+      # is approved. Needs -t:Restore because the .wapproj isn't part of the dotnet solution.
       - name: Build MSIX bundle
+        if: ${{ env.STORE_APP_ID != '' }}
         continue-on-error: true
         env:
           SOFTPHONE_VERSION: ${{ steps.ver.outputs.version }}
         run: >
           msbuild packaging/SoftPhone.Package/SoftPhone.Package.wapproj
+          -t:Restore,Build
           -p:Configuration=Release -p:Platform=x64
           -p:UapAppxPackageBuildMode=StoreUpload
-          -p:AppxBundlePlatforms="x64|arm64" -p:AppxBundle=Always
+          -p:AppxBundlePlatforms="x64" -p:AppxBundle=Always
           -p:AppxPackageSigningEnabled=false
           -p:AppxPackageDir="${{ github.workspace }}\artifacts\msix\\"
 
       - name: Sign MSIX (if configured)
-        if: ${{ env.PFX_PATH != '' }}
+        if: ${{ env.PFX_PATH != '' && env.STORE_APP_ID != '' }}
         continue-on-error: true
         shell: pwsh
         run: |
