@@ -207,7 +207,7 @@ public partial class PhoneWindow : Window
         var domain = DomainHelper.NormalizeDomain(SetupDomainBox.Text);
         if (!DomainHelper.IsValidDomain(domain))
         {
-            ShowSetupMessage("Enter a valid domain, e.g. dialpad-dev.crestapps.online.", isError: true);
+            ShowSetupMessage("Enter a valid domain, e.g. example.com.", isError: true);
             return;
         }
 

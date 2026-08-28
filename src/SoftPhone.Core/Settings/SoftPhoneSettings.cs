@@ -16,7 +16,7 @@ public sealed class WindowBounds
 /// </summary>
 public sealed class SoftPhoneSettings
 {
-    /// <summary>The configured tenant domain, e.g. "dialpad-dev.crestapps.online" (no scheme).</summary>
+    /// <summary>The configured tenant domain, e.g. "example.com" (no scheme).</summary>
     public string? Domain { get; set; }
 
     /// <summary>Start the tray app at login (MSIX startupTask).</summary>

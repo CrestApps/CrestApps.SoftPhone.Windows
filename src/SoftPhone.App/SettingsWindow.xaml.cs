@@ -63,7 +63,7 @@ public partial class SettingsWindow : Window
         var domain = DomainHelper.NormalizeDomain(DomainBox.Text);
         if (!_effective.Domain.IsManaged && !string.IsNullOrEmpty(domain) && !DomainHelper.IsValidDomain(domain))
         {
-            DomainError.Text = "Enter a valid tenant domain, e.g. dialpad-dev.crestapps.online.";
+            DomainError.Text = "Enter a valid tenant domain, e.g. example.com.";
             DomainError.Visibility = Visibility.Visible;
             Tabs.SelectedIndex = 0;
             return;
