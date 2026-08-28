@@ -280,6 +280,17 @@ public partial class App : System.Windows.Application
         MaybeConnect();
     }
 
+    /// <summary>
+    /// Reload the soft phone page at the configured domain. Invoked from Settings behind an explicit
+    /// confirmation because it drops any active call. Opens the phone first if it isn't already up so the
+    /// reloaded page is visible to the user.
+    /// </summary>
+    public void ReloadPhone()
+    {
+        OpenPhone();
+        _phoneWindow?.ReloadPhonePage();
+    }
+
     public void SetConnectionStatus(ConnectionStatus status, string? detail = null)
     {
         ConnectionStatus = status;

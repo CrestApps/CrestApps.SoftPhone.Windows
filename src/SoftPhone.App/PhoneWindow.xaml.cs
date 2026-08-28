@@ -83,6 +83,16 @@ public partial class PhoneWindow : Window
             await Web.EnsureCoreWebView2Async(env);
             _webViewReady = true;
 
+            // Lock the phone surface down so the user cannot reload or navigate away from a live call.
+            // A reload tears down the page's WebRTC session and drops the call, so we remove every built-in
+            // way to trigger one: the right-click context menu (Reload/Back/Inspect), the browser accelerator
+            // keys (F5, Ctrl+R, Ctrl+Shift+R, Alt+Left/Right, Ctrl+P/F, zoom), and the dev tools. Standard
+            // text-editing shortcuts (Ctrl+C/V/X) are not accelerator keys, so typing in the page still works.
+            var settings = Web.CoreWebView2.Settings;
+            settings.AreDefaultContextMenusEnabled = false;
+            settings.AreBrowserAcceleratorKeysEnabled = false;
+            settings.AreDevToolsEnabled = false;
+
             // Grant microphone to the tenant origin (contract §9 "two layers").
             Web.CoreWebView2.PermissionRequested += (_, e) =>
             {
@@ -132,6 +142,27 @@ public partial class PhoneWindow : Window
         Web.Visibility = Visibility.Visible;
         if (_webViewReady)
             Web.CoreWebView2.Navigate($"{DomainHelper.OriginFor(_domain)}/softphone?host=extension");
+    }
+
+    /// <summary>
+    /// Reload the soft phone page. Reloading tears down the page's WebRTC session, so this is only ever
+    /// invoked behind an explicit user confirmation (Settings → Reload phone). Re-navigates to the canonical
+    /// soft phone URL so any transient query (e.g. answerCallId) is dropped and the phone comes back clean.
+    /// </summary>
+    public void ReloadPhonePage()
+    {
+        if (!_webViewReady) return;
+
+        if (DomainHelper.IsValidDomain(_domain))
+        {
+            SetupView.Visibility = Visibility.Collapsed;
+            Web.Visibility = Visibility.Visible;
+            Web.CoreWebView2.Navigate($"{DomainHelper.OriginFor(_domain)}/softphone?host=extension");
+        }
+        else
+        {
+            Web.CoreWebView2.Reload();
+        }
     }
 
     /// <summary>Open/navigate the phone to auto-answer a pending inbound offer (contract §A).</summary>

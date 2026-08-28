@@ -88,6 +88,24 @@ public partial class SettingsWindow : Window
 
     private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
 
+    private void ReloadPhone_Click(object sender, RoutedEventArgs e)
+    {
+        var confirm = MessageBox.Show(
+            this,
+            "Reload the soft phone now?\n\n" +
+            "This reloads the phone at your tenant domain. If you are on an active call, reloading will " +
+            "disconnect it. Make sure you are not on a call before continuing.",
+            "Reload phone",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+
+        if (confirm != MessageBoxResult.Yes) return;
+
+        _app.ReloadPhone();
+        Close();
+    }
+
     // -------------------------------------------------------------- diagnostics
 
     private void RunTestButton_Click(object sender, RoutedEventArgs e) => _ = RunConnectionTestAsync();

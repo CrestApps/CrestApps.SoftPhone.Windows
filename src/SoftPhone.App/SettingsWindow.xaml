@@ -41,6 +41,15 @@
                         <CheckBox x:Name="DiagnosticsCheck"
                                   Content="Enable developer tools (adds “Simulate incoming call” to the tray menu)"
                                   Margin="0,14,0,0" />
+
+                        <Border Height="1" Background="{StaticResource Line}" Margin="0,22,0,0" />
+
+                        <TextBlock Text="Reload phone" FontWeight="SemiBold" Foreground="{StaticResource Ink}"
+                                   Margin="0,18,0,0" />
+                        <TextBlock Text="Reloads the soft phone at your tenant domain. Only do this when you are not on a call — reloading disconnects any call in progress."
+                                   Foreground="{StaticResource Muted}" Margin="0,1,0,8" TextWrapping="Wrap" />
+                        <Button x:Name="ReloadPhoneButton" Content="Reload phone" HorizontalAlignment="Left"
+                                Padding="12,6" Cursor="Hand" Click="ReloadPhone_Click" />
                     </StackPanel>
                 </Border>
             </TabItem>
