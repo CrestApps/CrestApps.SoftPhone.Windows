@@ -81,6 +81,7 @@ public partial class App : System.Windows.Application
         _connection.StatusChanged += (s, d) => SetConnectionStatus(s, d);
         _connection.IncomingCall += (call, ctx) => Dispatcher.Invoke(() => _coordinator?.HandleIncoming(call, ctx));
         _connection.CallStateChanged += call => Dispatcher.Invoke(() => _coordinator?.HandleStateChanged(call));
+        _connection.DialRequested += req => Dispatcher.Invoke(() => HandleDialRequested(req));
         _connection.NoActiveOffer += () => Dispatcher.Invoke(() => _coordinator?.OnNoActiveOffer());
 
         _coordinator = new IncomingCallCoordinator(this, new IncomingCallActions(
@@ -228,6 +229,37 @@ public partial class App : System.Windows.Application
             OpenPhone();
             _phoneWindow?.NavigateAnswer(callId);
         });
+    }
+
+    /// <summary>
+    /// Server-initiated outbound dial (an operator started a call from outside the phone). Handled
+    /// like IncomingCall on the background connection: this runs on the UI thread.
+    ///
+    /// When the phone window is already live on the soft phone page, that page's own hub connection
+    /// receives DialRequested and dials itself — we do nothing, so the call isn't placed twice.
+    /// Otherwise (window closed/minimized/backgrounded, so no page connection is alive) we open and
+    /// focus the phone, then relay the number to the page over the WebView2 message channel — never
+    /// by navigating or reloading, which would drop a live call. The page then dials on its normal
+    /// outbound path (registering first if needed, holding any active call) without touching presence.
+    /// </summary>
+    private void HandleDialRequested(TelephonyDialRequest request)
+    {
+        var number = request?.Number?.Trim();
+        if (string.IsNullOrEmpty(number))
+        {
+            Log.Info("DialRequested ignored: empty number.");
+            return;
+        }
+
+        if (_phoneWindow?.IsSoftPhoneLive == true)
+        {
+            Log.Info($"DialRequested {number}: phone page is live; leaving the dial to its own hub handler.");
+            return;
+        }
+
+        Log.Info($"DialRequested {number}: opening the phone and relaying the number.");
+        OpenPhone();
+        _phoneWindow?.RelayDial(number);
     }
 
     private void DeclineCall(string callId) => _ = SafeInvoke(() => _connection!.RejectAsync(callId), "Reject");

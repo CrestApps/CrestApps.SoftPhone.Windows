@@ -43,6 +43,17 @@ public sealed class CallReference
     public string CallId { get; set; } = "";
 }
 
+/// <summary>
+/// Server → client payload for <c>DialRequested</c> (contract §B): an operator started a call
+/// from outside the phone (e.g. the CRM "call" button). Arrives with a single <c>Number</c>
+/// (already trimmed by the server; may be E.164 or a raw dialable string). The soft phone —
+/// not the server — places the call.
+/// </summary>
+public sealed class TelephonyDialRequest
+{
+    public string Number { get; set; } = "";
+}
+
 /// <summary>Response of {adminPrefix}/contact-center/agent/current-incoming-offer. Contract §B.</summary>
 public sealed class PendingIncomingCallOffer
 {

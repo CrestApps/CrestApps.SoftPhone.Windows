@@ -47,6 +47,7 @@ public sealed class HubClientCallbacks
 {
     public Action<Call, CallContext>? OnIncomingCall { get; init; }
     public Action<Call>? OnCallStateChanged { get; init; }
+    public Action<TelephonyDialRequest>? OnDialRequested { get; init; }
     public Action<ConnectionStatus, string?>? OnStatus { get; init; }
 }
 
@@ -129,6 +130,12 @@ public sealed class TelephonyHubClient : IAsyncDisposable
             _callbacks.OnIncomingCall?.Invoke(call, context));
         conn.On<Call>("CallStateChanged", call =>
             _callbacks.OnCallStateChanged?.Invoke(call));
+
+        // Server-initiated outbound dial (contract §B): fired when an operator starts a call from
+        // outside the phone. Registered here alongside the other hub handlers so it is re-attached
+        // on every (re)built connection and survives reconnects.
+        conn.On<TelephonyDialRequest>("DialRequested", request =>
+            _callbacks.OnDialRequested?.Invoke(request));
 
         conn.Reconnecting += err =>
         {

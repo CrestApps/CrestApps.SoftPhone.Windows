@@ -30,6 +30,12 @@ public sealed class ConnectionHost : IAsyncDisposable
     public event Action<Call, CallContext>? IncomingCall;
     public event Action<Call>? CallStateChanged;
 
+    /// <summary>
+    /// Raised when the server pushes <c>DialRequested</c> (an operator started an outbound call
+    /// from outside the phone). The app places the call using the soft phone's normal dial path.
+    /// </summary>
+    public event Action<TelephonyDialRequest>? DialRequested;
+
     /// <summary>Raised when a current-offer poll finds no pending inbound call (clear any popup).</summary>
     public event Action? NoActiveOffer;
 
@@ -100,6 +106,11 @@ public sealed class ConnectionHost : IAsyncDisposable
                 {
                     _log?.Invoke($"Background: hub CallStateChanged {call.CallId} state={call.State}.");
                     CallStateChanged?.Invoke(call);
+                },
+                OnDialRequested = request =>
+                {
+                    _log?.Invoke($"Background: hub DialRequested number={request.Number}.");
+                    DialRequested?.Invoke(request);
                 },
                 OnStatus = (status, detail) => SetStatus(status, detail),
             });

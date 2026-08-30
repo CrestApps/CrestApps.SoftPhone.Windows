@@ -1,9 +1,11 @@
 using System.ComponentModel;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 using SoftPhone.Core.Config;
+using SoftPhone.Core.Contract;
 using SoftPhone.Core.Settings;
 
 namespace SoftPhone.App;
@@ -13,6 +15,12 @@ public partial class PhoneWindow : Window
     private readonly App _app;
     private bool _webViewReady;
     private string _domain = "";
+
+    // True once the /softphone page (not the login page) has loaded, i.e. its in-page hub
+    // connection and WebView2 message listener are live. A dial relayed while this is false is
+    // held in _pendingDial and flushed the moment the page finishes loading (cold-open case).
+    private bool _softPhoneLive;
+    private string? _pendingDial;
 
     /// <summary>Raised the first time a valid domain is configured via the setup view.</summary>
     public event Action<string>? DomainConfigured;
@@ -109,7 +117,13 @@ public partial class PhoneWindow : Window
                     && url.Contains("/softphone", StringComparison.OrdinalIgnoreCase)
                     && !url.Contains("/Login", StringComparison.OrdinalIgnoreCase))
                 {
+                    _softPhoneLive = true;
                     SignedIn?.Invoke();
+                    FlushPendingDial();
+                }
+                else
+                {
+                    _softPhoneLive = false;
                 }
             };
 
@@ -129,6 +143,7 @@ public partial class PhoneWindow : Window
 
     private void ShowSetup()
     {
+        _softPhoneLive = false;
         SetupView.Visibility = Visibility.Visible;
         Web.Visibility = Visibility.Collapsed;
         SetupDomainBox.Text = _app.SettingsStore.Load().Domain ?? "";
@@ -141,7 +156,10 @@ public partial class PhoneWindow : Window
         SetupView.Visibility = Visibility.Collapsed;
         Web.Visibility = Visibility.Visible;
         if (_webViewReady)
+        {
+            _softPhoneLive = false;
             Web.CoreWebView2.Navigate($"{DomainHelper.OriginFor(_domain)}/softphone?host=extension");
+        }
     }
 
     /// <summary>
@@ -153,6 +171,7 @@ public partial class PhoneWindow : Window
     {
         if (!_webViewReady) return;
 
+        _softPhoneLive = false;
         if (DomainHelper.IsValidDomain(_domain))
         {
             SetupView.Visibility = Visibility.Collapsed;
@@ -179,9 +198,48 @@ public partial class PhoneWindow : Window
         Web.Visibility = Visibility.Visible;
         if (_webViewReady)
         {
+            _softPhoneLive = false;
             var url = $"{DomainHelper.OriginFor(_domain)}/softphone?host=extension&answerCallId={Uri.EscapeDataString(callId)}";
             Web.CoreWebView2.Navigate(url);
         }
+    }
+
+    /// <summary>
+    /// True when the phone window is visible and the <c>/softphone</c> page is loaded — i.e. the
+    /// page's own hub connection is live and will receive <c>DialRequested</c> itself. When this is
+    /// true the background handler leaves dialing to the page (no relay), avoiding a double dial.
+    /// </summary>
+    public bool IsSoftPhoneLive => IsVisible && WindowState != WindowState.Minimized && _softPhoneLive;
+
+    /// <summary>
+    /// Relay a server-initiated dial to the loaded soft phone page over the WebView2 message
+    /// channel (never a navigation, query string, or reload — that would tear down a live call).
+    /// If the page isn't loaded yet (cold open from the tray), the number is held and posted the
+    /// moment it finishes loading. The <c>/softphone</c> page dials on receipt using its normal
+    /// outbound path — registering first if needed and holding any active call, without changing
+    /// the agent's presence.
+    /// </summary>
+    public void RelayDial(string number)
+    {
+        if (string.IsNullOrWhiteSpace(number)) return;
+        _pendingDial = number.Trim();
+        if (_webViewReady && _softPhoneLive)
+            FlushPendingDial();
+    }
+
+    private void FlushPendingDial()
+    {
+        var number = _pendingDial;
+        if (string.IsNullOrEmpty(number) || !_webViewReady) return;
+        _pendingDial = null;
+        try
+        {
+            // Delivered to the page as window.chrome.webview 'message' with { type: "dial", number }.
+            var json = JsonSerializer.Serialize(new { type = "dial", number }, ContractHelpers.Json);
+            Web.CoreWebView2.PostWebMessageAsJson(json);
+            Log.Info($"Relayed DialRequested to soft phone page: {number}");
+        }
+        catch (Exception ex) { Log.Error("RelayDial post failed", ex); }
     }
 
     // ---- custom title-bar caption buttons ----
