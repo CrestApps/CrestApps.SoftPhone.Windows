@@ -45,18 +45,29 @@ jobs:
         run: pwsh scripts/Set-Version.ps1 -Version "${{ steps.ver.outputs.version }}"
 
       - name: Build + package MSIX
+        shell: pwsh
         env:
           SOFTPHONE_VERSION: ${{ steps.ver.outputs.version }}
-        run: >
-          msbuild packaging/SoftPhone.Package/SoftPhone.Package.wapproj
-          -t:Restore,Build
-          -p:Configuration=Release
-          -p:Platform=x64
-          -p:UapAppxPackageBuildMode=StoreUpload
-          -p:AppxBundlePlatforms="x64|arm64"
-          -p:AppxBundle=Always
-          -p:AppxPackageSigningEnabled=false
-          -p:AppxPackageDir="${{ github.workspace }}\artifacts\msix\\"
+        run: |
+          # Build against whatever UAP platform SDK the runner actually has (the wapproj's
+          # hard-pinned TargetPlatformVersion breaks with APPX3217 when that exact SDK isn't
+          # installed — and runner images drift). Pick the highest installed UAP SDK.
+          $uapRoot = "C:\Program Files (x86)\Windows Kits\10\Platforms\UAP"
+          $tpv = (Get-ChildItem $uapRoot -Directory -ErrorAction SilentlyContinue |
+                  Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1).Name
+          if (-not $tpv) { throw "No UAP platform SDK found under $uapRoot on this runner." }
+          Write-Host "Using TargetPlatformVersion=$tpv"
+          msbuild packaging/SoftPhone.Package/SoftPhone.Package.wapproj `
+            -t:Restore,Build `
+            -p:Configuration=Release `
+            -p:Platform=x64 `
+            -p:TargetPlatformVersion=$tpv `
+            -p:UapAppxPackageBuildMode=StoreUpload `
+            -p:AppxBundlePlatforms="x64|arm64" `
+            -p:AppxBundle=Always `
+            -p:AppxPackageSigningEnabled=false `
+            -p:AppxPackageDir="${{ github.workspace }}\artifacts\msix\\"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Submit to the Store
         shell: pwsh
