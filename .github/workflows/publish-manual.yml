@@ -81,5 +81,9 @@ jobs:
           PARTNER_CLIENT_SECRET: ${{ secrets.PARTNER_CLIENT_SECRET }}
           STORE_APP_ID: ${{ secrets.STORE_APP_ID }}
         run: |
-          $noCommit = if ("${{ inputs.commit }}" -eq "true") { @() } else { @("-NoCommit") }
-          pwsh scripts/Submit-Store.ps1 -PackagePath "artifacts" @noCommit
+          # Splat a hashtable via the & call operator (reliable for .ps1); the previous
+          # `pwsh script @array` form mangled the switch into a bare '-'.
+          $params = @{ PackagePath = "artifacts" }
+          if ("${{ inputs.commit }}" -ne "true") { $params["NoCommit"] = $true }
+          & scripts/Submit-Store.ps1 @params
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
