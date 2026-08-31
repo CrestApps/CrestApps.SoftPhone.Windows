@@ -57,11 +57,15 @@ jobs:
                   Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1).Name
           if (-not $tpv) { throw "No UAP platform SDK found under $uapRoot on this runner." }
           Write-Host "Using TargetPlatformVersion=$tpv"
+          # Patch it into the wapproj (project-scoped) rather than passing -p globally, which
+          # would leak TargetPlatformVersion into the referenced net10.0 projects and break them
+          # with MSB4184. The checkout is ephemeral, so this edit never persists.
+          $wap = "packaging/SoftPhone.Package/SoftPhone.Package.wapproj"
+          (Get-Content $wap -Raw) -replace '<TargetPlatformVersion>.*?</TargetPlatformVersion>', "<TargetPlatformVersion>$tpv</TargetPlatformVersion>" | Set-Content $wap
           msbuild packaging/SoftPhone.Package/SoftPhone.Package.wapproj `
             -t:Restore,Build `
             -p:Configuration=Release `
             -p:Platform=x64 `
-            -p:TargetPlatformVersion=$tpv `
             -p:UapAppxPackageBuildMode=StoreUpload `
             -p:AppxBundlePlatforms="x64|arm64" `
             -p:AppxBundle=Always `
