@@ -49,7 +49,7 @@ jobs:
           SOFTPHONE_VERSION: ${{ steps.ver.outputs.version }}
         run: >
           msbuild packaging/SoftPhone.Package/SoftPhone.Package.wapproj
-          -t:Restore;Build
+          -t:Restore,Build
           -p:Configuration=Release
           -p:Platform=x64
           -p:UapAppxPackageBuildMode=StoreUpload
