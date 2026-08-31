@@ -67,7 +67,10 @@ $subJson = Join-Path $outDir "submission.json"
 $subZip = Join-Path $outDir "submission.zip"
 
 Write-Host "Building the submission payload…"
-New-SubmissionPackage -ConfigPath $storeConfig -PDPRootPath $pdpRoot `
+# StoreBroker requires PDPRootPath and ImagesRootPath as a pair when either is passed on the
+# command line. Screenshots live alongside each PDP (packaging/store/PDP/<lang>/), so the
+# images root is the same PDP root.
+New-SubmissionPackage -ConfigPath $storeConfig -PDPRootPath $pdpRoot -ImagesRootPath $pdpRoot `
     -AppxPath $pkg.FullName -OutPath $outDir -OutName "submission"
 
 Write-Host "Creating + committing the submission for App $appId…"
