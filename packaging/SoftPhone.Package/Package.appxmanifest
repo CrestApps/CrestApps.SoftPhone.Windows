@@ -2,10 +2,10 @@
 <!--
   MSIX manifest for CrestApps Soft Phone.
 
-  Identity Name/Publisher below are placeholders for local/sideload builds. For Microsoft Store
-  submissions, set them to the values Partner Center assigns (Product identity page) and commit
-  them here — see docs/RELEASING.md step 5. Only Version is stamped from the release tag at build
-  (scripts/Set-Version.ps1); it stays 0.0.0.0 in source.
+  Identity Name/Publisher/PublisherDisplayName below are the real values Partner Center assigned
+  for the reserved app (Product identity page, Store ID 9PC6SS662GWG) — see docs/RELEASING.md
+  step 5. Only Version is stamped from the release tag at build (scripts/Set-Version.ps1); it
+  stays 0.0.0.0 in source.
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -17,7 +17,7 @@
   IgnorableNamespaces="uap uap5 rescap desktop com">
 
   <Identity Name="CrestApps.SoftPhone"
-            Publisher="CN=CrestApps"
+            Publisher="CN=6E1BE588-4434-462F-B62A-C90F170AB6EE"
             Version="0.0.0.0" />
 
   <Properties>
