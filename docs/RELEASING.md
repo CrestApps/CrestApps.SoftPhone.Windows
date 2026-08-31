@@ -47,8 +47,11 @@ To build the installer/packages **without** releasing (e.g. a pilot drop): Actio
    name **Soft Phone**, create the Store listing once, and note the **Store App ID**.
 2. **Azure AD app for the Store submission API** — create an app registration, associate it
    in Partner Center (Account settings → User management → Azure AD applications), and grant
-   it Manager access. Collect the tenant id, client id, and a client secret.
-3. **Repo secrets** (Settings → Secrets and variables → Actions):
+   it the **Developer** role (least privilege — it can upload packages and submit apps; Manager
+   also works but is broader than needed). Collect the tenant id, client id, and a client secret.
+3. **Repo secrets** — added as **environment secrets** under the `production` environment
+   (Settings → Environments → production), which both `release.yml` and `publish-manual.yml`
+   target:
    - `PARTNER_TENANT_ID`, `PARTNER_CLIENT_ID`, `PARTNER_CLIENT_SECRET`, `STORE_APP_ID`
    - Optional sideload signing: `SIGNING_PFX_BASE64` (base64 of the .pfx) and
      `SIGNING_PFX_PASSWORD`.
