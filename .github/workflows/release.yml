@@ -1,10 +1,12 @@
 name: Release
 
 # Build all distributables (installer .exe, portable .zip, MSIX) with the correct version:
-#   • push a tag  vX.Y.Z         → build + attach to a GitHub Release (downloadable)
+#   • push a tag  vX.Y.Z         → build + attach to a GitHub Release (downloadable), and
+#                                   (opt-in, when STORE_APP_ID is set) submit the MSIX to the Store
 #   • run manually (workflow_dispatch, version input) → build artifacts only
-# No Microsoft Store dependency (that's publish-manual.yml). If code-signing secrets are set
-# (SIGNING_PFX_BASE64 + SIGNING_PFX_PASSWORD), the app exe, installer, and MSIX are signed.
+# The Store step is best-effort and gated on STORE_APP_ID, so releases stay clean before Partner
+# Center is configured; publish-manual.yml is the on-demand / draft-submission path. If code-signing
+# secrets are set (SIGNING_PFX_BASE64 + SIGNING_PFX_PASSWORD), the app exe, installer, and MSIX are signed.
 
 on:
   push:
@@ -142,6 +144,22 @@ jobs:
             & $st sign /fd SHA256 /f "$env:PFX_PATH" /p "$env:SIGNING_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 $_.FullName
           }
 
+      # ---- Store submission on tag (opt-in: only when STORE_APP_ID is set) ----
+      # Pushing a vX.Y.Z tag also submits the freshly built MSIX to the Microsoft Store and
+      # auto-commits it. Best-effort (continue-on-error) so a Store hiccup never blocks the
+      # downloadable installer/zip release. Smoke-test the pipeline first with publish-manual.yml
+      # (commit unchecked) to leave a draft submission before enabling this on real tags.
+      - name: Submit to the Store
+        if: ${{ env.STORE_APP_ID != '' && startsWith(github.ref, 'refs/tags/') }}
+        continue-on-error: true
+        shell: pwsh
+        env:
+          PARTNER_TENANT_ID: ${{ secrets.PARTNER_TENANT_ID }}
+          PARTNER_CLIENT_ID: ${{ secrets.PARTNER_CLIENT_ID }}
+          PARTNER_CLIENT_SECRET: ${{ secrets.PARTNER_CLIENT_SECRET }}
+          STORE_APP_ID: ${{ secrets.STORE_APP_ID }}
+        run: pwsh scripts/Submit-Store.ps1 -PackagePath "artifacts"
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -171,6 +189,7 @@ jobs:
             artifacts/**/*.msix
             artifacts/**/*.msixbundle
 
-  # Microsoft Store submission is intentionally NOT here — it's a separate, opt-in workflow
-  # (publish-manual.yml) so tagging always produces a clean, downloadable installer release
-  # even before the Partner Center account is approved / secrets are configured.
+  # Microsoft Store submission runs in the build job above, but only when STORE_APP_ID is set
+  # (opt-in) and only on a tag, and it's best-effort — so tagging always produces a clean,
+  # downloadable installer release even before Partner Center is configured. publish-manual.yml
+  # remains the on-demand path for smoke-testing / draft submissions without cutting a tag.

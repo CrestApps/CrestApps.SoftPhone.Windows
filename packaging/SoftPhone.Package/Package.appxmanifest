@@ -2,9 +2,10 @@
 <!--
   MSIX manifest for CrestApps Soft Phone.
 
-  Identity Name/Publisher are placeholders for local/sideload builds. For Microsoft Store
-  submissions, Partner Center assigns the real Identity — the release workflow injects it
-  (see docs/RELEASING.md). Version is 0.0.0.0 here and stamped from the release tag at build.
+  Identity Name/Publisher below are placeholders for local/sideload builds. For Microsoft Store
+  submissions, set them to the values Partner Center assigns (Product identity page) and commit
+  them here — see docs/RELEASING.md step 5. Only Version is stamped from the release tag at build
+  (scripts/Set-Version.ps1); it stays 0.0.0.0 in source.
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"

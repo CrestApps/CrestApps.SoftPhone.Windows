@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Store listing (PDP = Product Description Page) for CrestApps Soft Phone, en-US.
+
+  This is a hand-maintained starting point so scripts/Submit-Store.ps1 has something to submit.
+  The authoritative way to (re)generate this from the live Partner Center listing is:
+      New-StorePdp -AppId <STORE_APP_ID> -Release "<friendly name>" -OutPath .\PDP
+  Treat the text below as a draft to replace with the real listing copy before going live.
+
+  Screenshots referenced by DesktopImage= must exist under this same folder
+  (packaging/store/PDP/en-US/); see README.md. Every field here can also be edited directly
+  in Partner Center — StoreBroker just keeps it in source control.
+-->
+<ProductDescription language="en-us"
+    xmlns="http://schemas.microsoft.com/appx/2012/ProductDescription"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+  <AppStoreName>Soft Phone</AppStoreName>
+
+  <Keywords>
+    <Keyword>softphone</Keyword>
+    <Keyword>telephony</Keyword>
+    <Keyword>VoIP</Keyword>
+    <Keyword>WebRTC</Keyword>
+    <Keyword>call center</Keyword>
+  </Keywords>
+
+  <Description>
+CrestApps Soft Phone is the Windows desktop companion to the soft phone provided by the
+CrestApps Telephony module for OrchardCore. It keeps a background connection to your tenant's
+telephony hub so inbound calls ring even when the window is closed, hosts the live call in a
+resilient window that survives you working elsewhere, and signs in with your existing site
+session. It speaks only to your own tenant's endpoints and never loads a telephony vendor SDK.
+
+Requires the Soft Phone Extension feature enabled on your OrchardCore tenant.
+  </Description>
+
+  <ReleaseNotes>
+See the GitHub Releases page for per-version notes.
+  </ReleaseNotes>
+
+  <ScreenshotCaptions>
+    <!-- Add a Caption per screenshot; DesktopImage must match a file in this folder. -->
+    <Caption DesktopImage="screenshot-phone.png">Answer, decline, or send calls to voicemail from the desktop.</Caption>
+  </ScreenshotCaptions>
+
+  <AdditionalAssets>
+    <!-- Optional store art (StoreLogo, PromotionalArt, etc.). Leave empty to keep the
+         values already set in Partner Center. -->
+  </AdditionalAssets>
+
+</ProductDescription>

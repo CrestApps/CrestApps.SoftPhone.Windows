@@ -10,15 +10,18 @@ in the app shows the running version + build time.
 
 - **`ci.yml`** (every PR/push): restore → build → unit tests (Core + Notifications) →
   MSIX package (unsigned artifact) → FlaUI UI tests.
-- **`release.yml`** — builds every distributable with the correct version. It does **not**
-  touch the Store, so it produces clean, downloadable releases even before the Partner Center
-  account exists:
+- **`release.yml`** — builds every distributable with the correct version, and produces clean,
+  downloadable releases even before the Partner Center account exists:
   - **on tag `vX.Y.Z`:** stamp version → build + test → **portable zip**, **installer
-    `SoftPhone-Setup-vX.Y.Z.exe`** (Inno Setup), and (best-effort) the **MSIX** bundle →
-    cut a **GitHub Release** with them attached.
+    `SoftPhone-Setup-vX.Y.Z.exe`** (Inno Setup), and (when the Store is configured) the **MSIX**
+    bundle → cut a **GitHub Release** with them attached. When the `STORE_APP_ID` secret is set,
+    the same run also **submits the MSIX to the Microsoft Store and auto-commits it**.
   - **manual (Actions → Release → Run workflow, version input):** builds the same
-    installer / portable / MSIX artifacts (downloadable from the run) without creating a Release.
-  The MSIX step is best-effort — a packaging hiccup never blocks the installer/zip release.
+    installer / portable / MSIX artifacts (downloadable from the run) without creating a Release
+    and without submitting to the Store.
+  The MSIX and Store-submission steps are both best-effort and gated on `STORE_APP_ID` — a
+  packaging or Store hiccup never blocks the installer/zip release, and neither runs at all until
+  Partner Center is configured.
 - **`publish-manual.yml`** (Actions → Run workflow): the Store-only path — build + submit a
   given version to the **Microsoft Store** on demand (run this once the account is approved and
   the Store secrets are set; a checkbox controls whether it auto-commits the submission).
@@ -53,10 +56,12 @@ To build the installer/packages **without** releasing (e.g. a pilot drop): Actio
    - `packaging/store/SBConfig.json` — StoreBroker config (`New-StoreBrokerConfigFile`).
    - `packaging/store/PDP/**` — per-listing description/screenshots (`New-StorePdp`).
    See `scripts/Submit-Store.ps1` for how these are consumed.
-5. **Identity** — set the MSIX `Identity/@Name` and `Publisher` in
-   `packaging/SoftPhone.Package/Package.appxmanifest` to the values Partner Center assigns
-   for the reserved app (App identity page). Store-signed submissions are re-signed by
-   Microsoft; the sideload signature (step 3) is only for Intune/SCCM distribution.
+5. **Identity** — set the MSIX `Identity/@Name`, `Publisher`, and `<PublisherDisplayName>` in
+   `packaging/SoftPhone.Package/Package.appxmanifest` to the values Partner Center assigns for
+   the reserved app (Product identity page). These are committed directly in the manifest (they
+   replace the sideload placeholders `CrestApps.SoftPhone` / `CN=CrestApps`); the version is the
+   only part stamped at build time. Store-signed submissions are re-signed by Microsoft; the
+   sideload signature (step 3) is only for Intune/SCCM distribution.
 
 ## Notes on the local toolchain
 
