@@ -1,43 +1,29 @@
-# Store submission payload (`packaging/store/`)
+# Store assets (`packaging/store/`)
 
-StoreBroker reads everything under this folder to build a Microsoft Store submission.
-[`scripts/Submit-Store.ps1`](../../scripts/Submit-Store.ps1) consumes it from CI
-(`release.yml` on a tag, and `publish-manual.yml` on demand).
+The Microsoft Store **listing is managed in Partner Center**, not from this repo. CI only
+uploads the built MSIX to a new submission (see [`scripts/Submit-Store.ps1`](../../scripts/Submit-Store.ps1)),
+cloning the last submission so the existing listing carries forward unchanged.
+
+So there is **no PDP or StoreBroker config here** — just the screenshot assets you upload to the
+listing by hand.
 
 ```
 packaging/store/
-├─ SBConfig.json          # submission-shaping config (see comments inside)
-└─ PDP/
-   └─ en-US/
-      ├─ ProductDescription.xml   # the listing text (name, description, keywords, captions)
-      └─ screenshot-*.png         # screenshots referenced by DesktopImage= in the PDP
+└─ screenshots/
+   ├─ screenshot-desktop.png   # 1366x768 store screenshot (upload this in Partner Center)
+   └─ _source-app.png          # the raw app-window capture the composite was built from
 ```
 
-## These files are a starting point — regenerate from the live listing
+## Updating the screenshot
 
-The committed `SBConfig.json` and `ProductDescription.xml` are hand-written drafts so the
-pipeline has something to submit. Once the Partner Center listing exists, generate the
-authoritative versions against it and commit those:
+`screenshot-desktop.png` is the app window (`_source-app.png`) composited onto a Windows-style
+desktop backdrop at the Store's 1366×768 size. To refresh it after a UI change: recapture the
+window, replace `_source-app.png`, and rebuild the composite (the framing script lives in the
+PR/commit history), then upload the new PNG in Partner Center → your app → Store listing →
+Screenshots.
 
-```powershell
-Install-Module StoreBroker -Scope CurrentUser
-New-StoreBrokerConfigFile -AppId <STORE_APP_ID> -Path .\packaging\store\SBConfig.json
-New-StorePdp -AppId <STORE_APP_ID> -Release "<friendly name>" -OutPath .\packaging\store\PDP
-```
+## First submission
 
-Then re-apply the path comments in `SBConfig.json` (the per-run paths are supplied by
-`Submit-Store.ps1`, not hard-coded here).
-
-## Screenshots
-
-Drop the PNGs referenced by each `<Caption DesktopImage="…">` into the same language folder
-(`PDP/en-US/`). Store screenshot requirements (min 1, 1366×768 or larger) apply. Add more
-languages by creating sibling folders (`PDP/fr-FR/…`); en-US fills in for any locale without
-its own PDP (`MediaFallbackLanguage` in `SBConfig.json`).
-
-## Editing in Partner Center instead
-
-Every field here can also be edited directly in the Partner Center listing UI. StoreBroker's
-value is keeping the listing in source control and letting CI push it with each release; if
-you edit in the portal, pull those changes back with `New-StorePdp` so the repo stays the
-source of truth.
+CI's package-only flow can only clone an **existing** submission. Create and publish the first
+submission (description, this screenshot, privacy policy URL, age rating) once in Partner Center;
+after that, every tagged release swaps in the new build automatically.

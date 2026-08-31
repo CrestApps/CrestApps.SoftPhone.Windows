@@ -44,27 +44,28 @@ To build the installer/packages **without** releasing (e.g. a pilot drop): Actio
 > These are done once by the maintainer. Ask before creating any of these accounts.
 
 1. **Microsoft Partner Center** — enrol in a Windows developer account, reserve the app
-   name **Soft Phone**, create the Store listing once, and note the **Store App ID**.
-2. **Azure AD app for the Store submission API** — create an app registration, associate it
+   name **Soft Phone**, and note the **Store App ID**.
+2. **Create the first submission by hand** — in the portal, complete the listing (description,
+   at least one screenshot from `packaging/store/screenshots/`, privacy policy URL, age rating)
+   and **publish** the first submission. The listing is portal-managed; CI never edits it. CI's
+   package-only flow can only *clone* an existing submission, so this first one must exist before
+   automation works.
+3. **Azure AD app for the Store submission API** — create an app registration, associate it
    in Partner Center (Account settings → User management → Azure AD applications), and grant
    it the **Developer** role (least privilege — it can upload packages and submit apps; Manager
    also works but is broader than needed). Collect the tenant id, client id, and a client secret.
-3. **Repo secrets** — added as **environment secrets** under the `production` environment
+4. **Repo secrets** — added as **environment secrets** under the `production` environment
    (Settings → Environments → production), which both `release.yml` and `publish-manual.yml`
    target:
    - `PARTNER_TENANT_ID`, `PARTNER_CLIENT_ID`, `PARTNER_CLIENT_SECRET`, `STORE_APP_ID`
    - Optional sideload signing: `SIGNING_PFX_BASE64` (base64 of the .pfx) and
      `SIGNING_PFX_PASSWORD`.
-4. **Store payload config** (committed once under `packaging/store/`):
-   - `packaging/store/SBConfig.json` — StoreBroker config (`New-StoreBrokerConfigFile`).
-   - `packaging/store/PDP/**` — per-listing description/screenshots (`New-StorePdp`).
-   See `scripts/Submit-Store.ps1` for how these are consumed.
 5. **Identity** — set the MSIX `Identity/@Name`, `Publisher`, and `<PublisherDisplayName>` in
    `packaging/SoftPhone.Package/Package.appxmanifest` to the values Partner Center assigns for
    the reserved app (Product identity page). These are committed directly in the manifest (they
    replace the sideload placeholders `CrestApps.SoftPhone` / `CN=CrestApps`); the version is the
    only part stamped at build time. Store-signed submissions are re-signed by Microsoft; the
-   sideload signature (step 3) is only for Intune/SCCM distribution.
+   sideload signature (the optional signing secrets in step 4) is only for Intune/SCCM distribution.
 
 ## Notes on the local toolchain
 

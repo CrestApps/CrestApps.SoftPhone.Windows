@@ -1,23 +1,31 @@
 <#
 .SYNOPSIS
-  Submits the built MSIX to the Microsoft Store via StoreBroker.
+  Uploads the built MSIX to the Microsoft Store via StoreBroker (package-only).
 
 .DESCRIPTION
   Called by .github/workflows/release.yml (and publish-manual.yml). Authenticates to the
-  Store submission API with an Azure AD app (Partner Center), then creates a new submission
-  that replaces the packages with the freshly built bundle and commits it.
+  Store submission API with an Azure AD app (Partner Center), clones the app's most recent
+  submission, replaces its packages with the freshly built bundle, and (unless -NoCommit)
+  commits it.
+
+  The listing — description, screenshots, pricing, age rating, privacy policy — is managed in
+  Partner Center and is NOT touched here. Cloning carries the existing (valid) listing forward
+  unchanged, so CI only ever swaps the binary. This keeps the pipeline simple: no PDP or
+  screenshot assets in the repo.
 
   One-time setup (see docs/RELEASING.md), done by the maintainer:
     • Enroll in Partner Center, reserve the app name, note the Store App ID.
-    • Create an Azure AD app and associate it in Partner Center → secrets:
+    • Create AND publish the first submission/listing in the portal (description, at least one
+      screenshot, privacy policy, age rating). CI can only clone an EXISTING submission — the
+      very first one must be created by hand.
+    • Create an Azure AD app, associate it in Partner Center (Developer role) → secrets:
         PARTNER_TENANT_ID, PARTNER_CLIENT_ID, PARTNER_CLIENT_SECRET, STORE_APP_ID
-    • Commit the Store payload config under packaging/store/:
-        packaging/store/SBConfig.json     (StoreBroker config)
-        packaging/store/PDP/**            (per-listing PDP xml + screenshots)
-      Generate starters with:  New-StoreBrokerConfigFile ; New-StorePdp
 
 .PARAMETER PackagePath
   Folder containing the built .msixupload / .msixbundle (the release artifact).
+
+.PARAMETER NoCommit
+  Create/update the submission but leave it uncommitted (a draft) for review in Partner Center.
 #>
 param(
     [Parameter(Mandatory = $true)][string]$PackagePath,
@@ -34,12 +42,6 @@ foreach ($pair in @{TenantId=$tenantId;ClientId=$clientId;ClientSecret=$clientSe
     if ([string]::IsNullOrWhiteSpace($pair.Value)) { throw "Missing $($pair.Key) (set the matching repo secret)." }
 }
 
-$storeConfig = Join-Path $PSScriptRoot "..\packaging\store\SBConfig.json"
-$pdpRoot = Join-Path $PSScriptRoot "..\packaging\store\PDP"
-if (-not (Test-Path $storeConfig)) {
-    throw "Store payload config not found at packaging/store/SBConfig.json. Complete the one-time setup in docs/RELEASING.md."
-}
-
 Write-Host "Installing StoreBroker…"
 if (-not (Get-Module -ListAvailable -Name StoreBroker)) {
     Install-Module -Name StoreBroker -Force -Scope CurrentUser -AllowClobber
@@ -52,8 +54,7 @@ $cred = New-Object System.Management.Automation.PSCredential($clientId, $secure)
 Set-StoreBrokerAuthentication -TenantId $tenantId -Credential $cred
 
 # Locate the package to upload (prefer .msixupload, else .msixbundle/.msix).
-$pkg = Get-ChildItem -Path $PackagePath -Recurse -Include *.msixupload |
-       Select-Object -First 1
+$pkg = Get-ChildItem -Path $PackagePath -Recurse -Include *.msixupload | Select-Object -First 1
 if (-not $pkg) {
     $pkg = Get-ChildItem -Path $PackagePath -Recurse -Include *.msixbundle, *.msix |
            Sort-Object Length -Descending | Select-Object -First 1
@@ -61,22 +62,15 @@ if (-not $pkg) {
 if (-not $pkg) { throw "No .msixupload/.msixbundle/.msix found under $PackagePath." }
 Write-Host "Package: $($pkg.FullName)"
 
-$outDir = Join-Path $env:RUNNER_TEMP "sb"
-New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-$subJson = Join-Path $outDir "submission.json"
-$subZip = Join-Path $outDir "submission.zip"
-
-Write-Host "Building the submission payload…"
-# StoreBroker requires PDPRootPath and ImagesRootPath as a pair when either is passed on the
-# command line. Screenshots live alongside each PDP (packaging/store/PDP/<lang>/), so the
-# images root is the same PDP root.
-New-SubmissionPackage -ConfigPath $storeConfig -PDPRootPath $pdpRoot -ImagesRootPath $pdpRoot `
-    -AppxPath $pkg.FullName -OutPath $outDir -OutName "submission"
-
-Write-Host "Creating + committing the submission for App $appId…"
+# Package-only submission: clone the app's most recent submission, replace its packages with
+# the new build, and (unless -NoCommit) commit. -Force clears any half-finished pending
+# submission first. The listing is left exactly as it is in Partner Center.
+#
+# NOTE: this requires at least one existing submission to clone. If the app has never had a
+# submission, create (and publish) the first one in the portal — CI cannot bootstrap a listing.
 $commit = -not $NoCommit
 Update-ApplicationSubmission -AppId $appId `
-    -SubmissionDataPath $subJson -PackagePath $subZip `
-    -ReplacePackages -UpdateListings -AutoCommit:$commit -Force
+    -AppxPath $pkg.FullName -ReplacePackages `
+    -AutoCommit:$commit -Force
 
-Write-Host "Store submission complete (AutoCommit=$commit)."
+Write-Host "Store package submission complete (AutoCommit=$commit)."
