@@ -19,8 +19,17 @@ experience:
 
 - The tenant's `https://{domain}/softphone` page hosts the actual call (WebRTC media leg).
 - `GET /softphone/extension-config` tells the app the tenant-aware hub + endpoint URLs.
-- The telephony hub delivers `IncomingCall` / `CallStateChanged`; the app answers by opening
-  the phone to `?answerCallId=…`, and declines/voicemails by invoking the hub directly.
+- The telephony hub delivers `IncomingCall` / `CallStateChanged` / `IncomingCallAnswered` to
+  the app's background connection, so it rings even when the phone page is not loaded. Then
+  Answer opens the phone at `?answerCallId=…`, and Decline / Voicemail invoke the hub directly.
+- When the phone page is loaded, the page and the app hand the incoming call over through the
+  WebView2 message channel (`src/SoftPhone.Core/Contract/HostBridge.cs`). The page sends the
+  ringing call with its queue and matched records; the app's popup shows them, and the page
+  hides its own incoming modal only after the app confirms the popup is on screen. If the app
+  does not confirm within 2 seconds, or the popup closes without an answer, the page shows its
+  modal again. Answer, Decline, and Voicemail in the popup run in the page (it holds the call
+  audio and the offer), so answering never reloads the page. The popup closes when the page
+  reports that the call stopped ringing: answered, declined, expired, revoked, or hung up.
 
 All of this is served by the
 [CrestApps.OrchardCore](https://github.com/CrestApps/CrestApps.OrchardCore/) Telephony

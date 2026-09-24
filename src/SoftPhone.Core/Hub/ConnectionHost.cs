@@ -39,6 +39,9 @@ public sealed class ConnectionHost : IAsyncDisposable
     /// <summary>Raised when a current-offer poll finds no pending inbound call (clear any popup).</summary>
     public event Action? NoActiveOffer;
 
+    /// <summary>Raised when the server says a ringing call was answered on another of the user's soft phones.</summary>
+    public event Action<IncomingCallAnsweredNotice>? IncomingCallAnswered;
+
     /// <summary>True once we've successfully fetched the tenant config (safe to poll the offer).</summary>
     public bool IsConfigured => _config is not null;
 
@@ -111,6 +114,11 @@ public sealed class ConnectionHost : IAsyncDisposable
                 {
                     _log?.Invoke($"Background: hub DialRequested number={request.Number}.");
                     DialRequested?.Invoke(request);
+                },
+                OnIncomingCallAnswered = notice =>
+                {
+                    _log?.Invoke($"Background: hub IncomingCallAnswered {notice.CallId} (offer {notice.OfferId}).");
+                    IncomingCallAnswered?.Invoke(notice);
                 },
                 OnStatus = (status, detail) => SetStatus(status, detail),
             });

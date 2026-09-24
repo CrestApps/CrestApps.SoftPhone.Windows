@@ -22,11 +22,23 @@ public partial class PhoneWindow : Window
     private bool _softPhoneLive;
     private string? _pendingDial;
 
+    // True while the loaded page takes part in the incoming-call handoff (it sent softphone-ready and
+    // we answered host-ready). The page then hides its own incoming modal while our popup confirms.
+    private bool _pageBridgeReady;
+
     /// <summary>Raised the first time a valid domain is configured via the setup view.</summary>
     public event Action<string>? DomainConfigured;
 
     /// <summary>Raised when the softphone page loads successfully (session is valid → background can connect).</summary>
     public event Action? SignedIn;
+
+    /// <summary>The page joined (true) or left (false) the incoming-call handoff.</summary>
+    public event Action<bool>? PageBridgeChanged;
+
+    /// <summary>A host-bridge message from the page (after the handshake).</summary>
+    public event Action<PageMessage>? PageMessageReceived;
+
+    public bool IsPageBridgeReady => _pageBridgeReady;
 
     public PhoneWindow(App app)
     {
@@ -125,6 +137,18 @@ public partial class PhoneWindow : Window
                 {
                     _softPhoneLive = false;
                 }
+            };
+
+            // Incoming-call handoff with the page (see HostBridge). ContentLoading fires only once a new
+            // document replaces the page — not for a navigation the page's "leave site?" prompt cancels —
+            // so the handshake is dropped exactly when the page that made it is gone.
+            Web.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+            Web.CoreWebView2.ContentLoading += (_, _) => SetPageBridge(false);
+            Web.CoreWebView2.ProcessFailed += (_, e) =>
+            {
+                Log.Warn($"WebView2 process failed: {e.ProcessFailedKind}");
+                if (e.ProcessFailedKind != CoreWebView2ProcessFailedKind.RenderProcessUnresponsive)
+                    SetPageBridge(false);
             };
 
             var effective = _app.ResolveSettings();
@@ -240,6 +264,62 @@ public partial class PhoneWindow : Window
             Log.Info($"Relayed DialRequested to soft phone page: {number}");
         }
         catch (Exception ex) { Log.Error("RelayDial post failed", ex); }
+    }
+
+    // ---- incoming-call handoff (HostBridge) ----
+
+    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        // Only the tenant's own page may drive the notification: the messages carry customer data and
+        // decide whether the page shows its incoming modal.
+        if (!IsTenantOrigin(e.Source))
+        {
+            Log.Warn($"Ignored a web message from {e.Source}.");
+            return;
+        }
+
+        string json;
+        try { json = e.WebMessageAsJson; }
+        catch (Exception ex) { Log.Error("Reading a web message failed", ex); return; }
+
+        switch (HostBridge.ParsePageMessage(json))
+        {
+            case PageReadyMessage ready:
+                Log.Info($"Soft phone page ready (host bridge protocol {ready.Protocol}).");
+                PostToPage(HostBridge.HostReady());
+                SetPageBridge(true);
+                break;
+
+            case { } message when _pageBridgeReady:
+                PageMessageReceived?.Invoke(message);
+                break;
+        }
+    }
+
+    /// <summary>Post a host-bridge message to the loaded page (delivered to window.chrome.webview).</summary>
+    public void PostToPage(string json)
+    {
+        if (!_webViewReady) return;
+        try { Web.CoreWebView2.PostWebMessageAsJson(json); }
+        catch (Exception ex) { Log.Error("Posting to the soft phone page failed", ex); }
+    }
+
+    private void SetPageBridge(bool ready)
+    {
+        if (_pageBridgeReady == ready) return;
+        _pageBridgeReady = ready;
+        PageBridgeChanged?.Invoke(ready);
+    }
+
+    private bool IsTenantOrigin(string? source)
+    {
+        if (!DomainHelper.IsValidDomain(_domain)
+            || !Uri.TryCreate(source, UriKind.Absolute, out var sourceUri)
+            || !Uri.TryCreate(DomainHelper.OriginFor(_domain), UriKind.Absolute, out var tenant))
+            return false;
+
+        return Uri.Compare(sourceUri, tenant, UriComponents.SchemeAndServer, UriFormat.Unescaped,
+            StringComparison.OrdinalIgnoreCase) == 0;
     }
 
     // ---- custom title-bar caption buttons ----

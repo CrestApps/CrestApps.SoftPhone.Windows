@@ -19,14 +19,31 @@ public sealed class Call
     public string ProviderName { get; set; } = "";
 }
 
+/// <summary>A matched record shown with an incoming call (e.g. a customer the caller's number matched).</summary>
 public sealed class ContextCard
 {
     public string Id { get; set; } = "";
     public string Title { get; set; } = "";
     public string? Subtitle { get; set; }
+    public string? Description { get; set; }
     public string? Url { get; set; }
     public bool? OpenInNewTab { get; set; }
     public string[]? Badges { get; set; }
+
+    /// <summary>Label for the "open" action (e.g. "Open activity"); null means the generic "Open".</summary>
+    public string? OpenText { get; set; }
+
+    /// <summary>Label for the "answer and open" action; null means the generic "Answer &amp; open".</summary>
+    public string? AnswerAndOpenText { get; set; }
+
+    /// <summary>Extra links on the card (e.g. "Customer record").</summary>
+    public List<ContextLink>? Links { get; set; }
+}
+
+public sealed class ContextLink
+{
+    public string? Text { get; set; }
+    public string? Url { get; set; }
 }
 
 /// <summary>Screen-pop / caller context accompanying an incoming call. Contract §B.</summary>
@@ -52,6 +69,18 @@ public sealed class CallReference
 public sealed class TelephonyDialRequest
 {
     public string Number { get; set; } = "";
+}
+
+/// <summary>
+/// Server → client payload for <c>IncomingCallAnswered</c>: a call that rang on all of the user's soft
+/// phones was answered on one of them, so the others stop ringing at once.
+/// </summary>
+public sealed class IncomingCallAnsweredNotice
+{
+    public string? CallId { get; set; }
+
+    /// <summary>The answered offer (the <c>reservationId</c> property of the call context), when there was one.</summary>
+    public string? OfferId { get; set; }
 }
 
 /// <summary>Response of {adminPrefix}/contact-center/agent/current-incoming-offer. Contract §B.</summary>

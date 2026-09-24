@@ -48,6 +48,7 @@ public sealed class HubClientCallbacks
     public Action<Call, CallContext>? OnIncomingCall { get; init; }
     public Action<Call>? OnCallStateChanged { get; init; }
     public Action<TelephonyDialRequest>? OnDialRequested { get; init; }
+    public Action<IncomingCallAnsweredNotice>? OnIncomingCallAnswered { get; init; }
     public Action<ConnectionStatus, string?>? OnStatus { get; init; }
 }
 
@@ -136,6 +137,11 @@ public sealed class TelephonyHubClient : IAsyncDisposable
         // on every (re)built connection and survives reconnects.
         conn.On<TelephonyDialRequest>("DialRequested", request =>
             _callbacks.OnDialRequested?.Invoke(request));
+
+        // The call was answered on another of the user's soft phones: stop ringing here at once
+        // instead of waiting for the next current-offer poll.
+        conn.On<IncomingCallAnsweredNotice>("IncomingCallAnswered", notice =>
+            _callbacks.OnIncomingCallAnswered?.Invoke(notice));
 
         conn.Reconnecting += err =>
         {

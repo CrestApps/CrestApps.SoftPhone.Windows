@@ -29,6 +29,7 @@ public class SignalRIncomingCallBindingTests : IAsyncLifetime
     {
         Task IncomingCall(object call, object context);
         Task CallStateChanged(object call);
+        Task IncomingCallAnswered(object notification);
     }
 
     public sealed class TestHub : Hub<ITelephonyClientLike>
@@ -77,6 +78,9 @@ public class SignalRIncomingCallBindingTests : IAsyncLifetime
             var call = new { CallId = "call-1", From = "+1", To = "+2", State = "Disconnected", Direction = "Inbound", ProviderName = "Telnyx" };
             return Clients.Caller.CallStateChanged(call);
         }
+
+        // Shaped like the server's IncomingCallAnsweredNotification.
+        public Task PushAnswered() => Clients.Caller.IncomingCallAnswered(new { CallId = "call-1", OfferId = "res-1" });
     }
 
     public async Task InitializeAsync()
@@ -111,6 +115,22 @@ public class SignalRIncomingCallBindingTests : IAsyncLifetime
         var done = await Task.WhenAny(tcs.Task, Task.Delay(5000));
         Assert.True(done == tcs.Task, "CallStateChanged (single simple arg) should always bind.");
         Assert.Equal("call-1", (await tcs.Task).CallId);
+    }
+
+    [Fact]
+    public async Task IncomingCallAnswered_binds_call_and_offer_ids()
+    {
+        await using var conn = Build(_hubUrl);
+        var tcs = new TaskCompletionSource<IncomingCallAnsweredNotice>(TaskCreationOptions.RunContinuationsAsynchronously);
+        conn.On<IncomingCallAnsweredNotice>("IncomingCallAnswered", n => tcs.TrySetResult(n));
+        await conn.StartAsync();
+        await conn.InvokeAsync("PushAnswered");
+
+        var done = await Task.WhenAny(tcs.Task, Task.Delay(5000));
+        Assert.True(done == tcs.Task, "IncomingCallAnswered should bind.");
+        var notice = await tcs.Task;
+        Assert.Equal("call-1", notice.CallId);
+        Assert.Equal("res-1", notice.OfferId);
     }
 
     [Fact]
