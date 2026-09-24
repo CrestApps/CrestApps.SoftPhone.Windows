@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using SoftPhone.Core.Config;
 using SoftPhone.Core.Contract;
 using SoftPhone.Core.Hub;
+using SoftPhone.Core.Incoming;
 using SoftPhone.Core.Settings;
 
 namespace SoftPhone.App;
@@ -83,11 +85,13 @@ public partial class App : System.Windows.Application
         _connection.CallStateChanged += call => Dispatcher.Invoke(() => _coordinator?.HandleStateChanged(call));
         _connection.DialRequested += req => Dispatcher.Invoke(() => HandleDialRequested(req));
         _connection.NoActiveOffer += () => Dispatcher.Invoke(() => _coordinator?.OnNoActiveOffer());
+        _connection.IncomingCallAnswered += notice => Dispatcher.Invoke(() => _coordinator?.OnCallAnsweredElsewhere(notice));
 
         _coordinator = new IncomingCallCoordinator(this, new IncomingCallActions(
-            Answer: AnswerCall,
-            Decline: DeclineCall,
-            Voicemail: VoicemailCall));
+            Carry: CarryChoice,
+            OpenUrl: OpenInBrowser,
+            PostToPage: json => _phoneWindow?.PostToPage(json),
+            ResolveUrl: url => HostBridge.ResolveWebUrl(url, TenantOrigin)));
 
         BuildTray();
 
@@ -128,10 +132,16 @@ public partial class App : System.Windows.Application
             _phoneWindow = new PhoneWindow(this);
             _phoneWindow.DomainConfigured += _ => { OnSettingsChanged(); MaybeConnect(); };
             _phoneWindow.SignedIn += () => MaybeConnect();
-            _phoneWindow.Closed += (_, _) => _phoneWindow = null;
-            // Show/hide the incoming popup as the phone window gains/loses focus or is minimized,
-            // so a ringing call surfaces the moment the user looks away from the phone.
-            _phoneWindow.Activated += (_, _) => _coordinator?.OnPhoneForegrounded();
+            _phoneWindow.PageBridgeChanged += ready => _coordinator?.OnPageBridgeChanged(ready);
+            _phoneWindow.PageMessageReceived += message => _coordinator?.OnPageMessage(message);
+            _phoneWindow.Closed += (_, _) =>
+            {
+                _phoneWindow = null;
+                _coordinator?.OnPageBridgeChanged(false);
+            };
+            // Re-apply the popup rules as the phone window gains/loses focus or is minimized. With an
+            // older server (no page handoff) the popup steps aside while the page's own modal is in view.
+            _phoneWindow.Activated += (_, _) => _coordinator?.OnPhoneFocusChanged();
             _phoneWindow.Deactivated += (_, _) => PhoneWentBackground();
             _phoneWindow.StateChanged += (_, _) =>
             {
@@ -195,7 +205,7 @@ public partial class App : System.Windows.Application
     /// </summary>
     private void PhoneWentBackground()
     {
-        _coordinator?.OnPhoneBackgrounded();
+        _coordinator?.OnPhoneFocusChanged();
         _ = CheckOfferSafeAsync();
     }
 
@@ -222,6 +232,37 @@ public partial class App : System.Windows.Application
         _offerPoll.Start();
     }
 
+    /// <summary>
+    /// Carry out the agent's choice in a popup. With the page taking part, every action goes to the
+    /// page, which holds the call audio and the offer (and never reloads). Without it, Answer loads
+    /// /softphone?answerCallId= and Decline/Voicemail act on the parked call through the hub.
+    /// </summary>
+    private void CarryChoice(IncomingCallChoice choice)
+    {
+        Log.Info($"Popup: {choice.Action} for {choice.CallId} via {choice.Route}.");
+        switch (choice.Route)
+        {
+            case IncomingCallRoute.Page:
+                if (choice.Action == IncomingCallAction.Answer)
+                    OpenPhone();
+                _phoneWindow?.PostToPage(HostBridge.Action(choice.CallId, choice.Action));
+                break;
+
+            case IncomingCallRoute.ReloadPageToAnswer:
+                AnswerCall(choice.CallId);
+                break;
+
+            case IncomingCallRoute.Server:
+                if (choice.Action == IncomingCallAction.Voicemail) VoicemailCall(choice.CallId);
+                else DeclineCall(choice.CallId);
+                break;
+        }
+
+        // "Answer & open": the record opens last so the browser ends up in front of the phone.
+        if (choice.OpenUrl is not null)
+            OpenInBrowser(choice.OpenUrl);
+    }
+
     private void AnswerCall(string callId)
     {
         Dispatcher.Invoke(() =>
@@ -229,6 +270,30 @@ public partial class App : System.Windows.Application
             OpenPhone();
             _phoneWindow?.NavigateAnswer(callId);
         });
+    }
+
+    /// <summary>The configured tenant's origin (https://domain), or null when none is configured.</summary>
+    private string? TenantOrigin
+    {
+        get
+        {
+            var domain = ResolveSettings().Domain.Value;
+            return DomainHelper.IsValidDomain(domain) ? DomainHelper.OriginFor(domain) : null;
+        }
+    }
+
+    /// <summary>Open a matched record's link in the default browser. Only http(s) links are ever opened.</summary>
+    private void OpenInBrowser(string url)
+    {
+        var uri = HostBridge.ResolveWebUrl(url, TenantOrigin);
+        if (uri is null)
+        {
+            Log.Warn($"Not opening a non-web link: {url}");
+            return;
+        }
+
+        try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }
+        catch (Exception ex) { Log.Error("Opening a record link failed", ex); }
     }
 
     /// <summary>

@@ -1,117 +1,135 @@
+using System.Windows;
+using System.Windows.Threading;
 using SoftPhone.Core.Contract;
+using SoftPhone.Core.Incoming;
 
 namespace SoftPhone.App;
 
-/// <summary>Actions the coordinator invokes for the three call responses.</summary>
+/// <summary>What the coordinator hands back to the app.</summary>
+/// <param name="Carry">Carry out an agent's choice (post to the page, reload to answer, or hub Reject/Voicemail).</param>
+/// <param name="OpenUrl">Open a matched record's link in the default browser.</param>
+/// <param name="PostToPage">Post a host-bridge message to the loaded /softphone page.</param>
+/// <param name="ResolveUrl">Resolve a card link to an absolute web URL (null if it is not one).</param>
 public sealed record IncomingCallActions(
-    Action<string> Answer,
-    Action<string> Decline,
-    Action<string> Voicemail);
+    Action<IncomingCallChoice> Carry,
+    Action<string> OpenUrl,
+    Action<string> PostToPage,
+    Func<string?, Uri?> ResolveUrl);
 
 /// <summary>
-/// Turns background <c>IncomingCall</c> / <c>CallStateChanged</c> events into the local
-/// incoming UX: loops the ringtone and shows the in-app popup (contract §7/§8).
-///
-/// The popup is shown whenever the phone window is NOT focused during a ringing call — so it
-/// appears immediately if no window is open, AND it appears the moment the user minimizes or
-/// clicks away from the phone window while a call is still ringing. When the phone window is
-/// focused (the page shows its own incoming UI) the popup is hidden to avoid double UI.
+/// The WPF side of the incoming-call UX (contract §7/§8): one popup per ringing call, stacked in
+/// the bottom-right corner, plus the looping ringtone. <see cref="IncomingCallTracker"/> decides
+/// what shows and what the /softphone page is told; this class only opens, updates and closes
+/// the windows it is asked to, and reports back when a popup is rendered or closed by the agent.
 /// </summary>
-public sealed class IncomingCallCoordinator : IDisposable
+public sealed class IncomingCallCoordinator : IIncomingCallSurface, IDisposable
 {
+    private const double Gap = 8;
+    private const double ScreenMargin = 12;
+
     private readonly App _app;
     private readonly IncomingCallActions _actions;
     private readonly RingtonePlayer _ring = new();
-    private IncomingCallWindow? _popup;
-
-    private string? _currentCallId;
-    private Call? _currentCall;
-    private CallContext? _currentContext;
+    private readonly List<IncomingCallWindow> _popups = new();
+    private readonly DispatcherTimer _expiry;
 
     public IncomingCallCoordinator(App app, IncomingCallActions actions)
     {
         _app = app;
         _actions = actions;
+        Tracker = new IncomingCallTracker(this, Log.Info);
+
+        // Close a background popup the moment its offer reservation expires (the page does the same
+        // for calls it reported), rather than on the next current-offer poll.
+        _expiry = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _expiry.Tick += (_, _) =>
+        {
+            if (Tracker.Calls.Count > 0) Tracker.ExpireDue(DateTimeOffset.UtcNow);
+        };
+        _expiry.Start();
     }
 
-    public void HandleIncoming(Call call, CallContext context)
+    public IncomingCallTracker Tracker { get; }
+
+    // ---- inputs from the app ----
+
+    public void HandleIncoming(Call call, CallContext context) => Tracker.BackgroundIncoming(call, context);
+    public void HandleStateChanged(Call call) => Tracker.BackgroundStateChanged(call);
+    public void OnNoActiveOffer() => Tracker.BackgroundNoActiveOffer();
+    public void OnCallAnsweredElsewhere(IncomingCallAnsweredNotice notice) =>
+        Tracker.BackgroundCallAnswered(notice.CallId, notice.OfferId);
+    public void OnPageBridgeChanged(bool ready) => Tracker.PageBridgeChanged(ready);
+    public void OnPageMessage(PageMessage message) => Tracker.Page(message);
+
+    /// <summary>The phone window gained or lost focus, or was minimized.</summary>
+    public void OnPhoneFocusChanged() => Tracker.Refresh();
+
+    // ---- IIncomingCallSurface ----
+
+    public bool IsPhoneWindowFocused => _app.IsPhoneWindowFocused;
+    public bool RingtoneEnabled => _app.RingtoneEnabled;
+
+    public void ShowPopup(RingingCall call)
     {
-        if (call is null || string.IsNullOrEmpty(call.CallId)) return;
+        var popup = new IncomingCallWindow(call, _actions.ResolveUrl);
+        popup.Chosen += (action, url) => Tracker.Choose(popup.CallId, action, url);
+        popup.OpenRequested += url => _actions.OpenUrl(url);
+        popup.ContentRendered += (_, _) => Tracker.PopupRendered(popup.CallId);
+        popup.Loaded += (_, _) => Layout();
+        popup.SizeChanged += (_, _) => Layout();
+        popup.ClosedByAgent += () =>
+        {
+            _popups.Remove(popup);
+            Layout();
+            Tracker.PopupClosedByAgent(popup.CallId);
+        };
 
-        // Dedup: ignore repeat offers for a call we're already ringing.
-        if (_currentCallId == call.CallId && _popup is not null) return;
-
-        _currentCallId = call.CallId;
-        _currentCall = call;
-        _currentContext = context;
-        Log.Info($"Incoming call {call.CallId} from {call.From}");
-
-        if (_app.RingtoneEnabled)
-            _ring.Play();
-
-        ShowPopupIfNeeded();
+        _popups.Add(popup);
+        popup.Show();
+        Layout();
+        popup.Activate();
     }
 
-    /// <summary>Show the popup if a call is ringing and the phone window isn't focused.</summary>
-    public void ShowPopupIfNeeded()
-    {
-        if (_currentCallId is null || _currentCall is null) return; // nothing ringing
-        if (_popup is not null) return;                             // already visible
-        if (_app.IsPhoneWindowFocused) return;                      // page shows its own UI
+    public void UpdatePopup(RingingCall call) => Find(call.CallId)?.Render(call);
 
-        _popup = new IncomingCallWindow(_currentCall, _currentContext ?? new CallContext());
-        _popup.Answered += id => { _actions.Answer(id); Clear(id); };
-        _popup.Declined += id => { _actions.Decline(id); Clear(id); };
-        _popup.SentToVoicemail += id => { _actions.Voicemail(id); Clear(id); };
-        _popup.Show();
-        _popup.Activate();
+    public void ClosePopup(string callId)
+    {
+        var popup = Find(callId);
+        if (popup is null) return;
+        _popups.Remove(popup);
+        popup.CloseByHost();
+        Layout();
     }
 
-    /// <summary>Phone window came to the foreground — hide the popup (the page shows the call).</summary>
-    public void OnPhoneForegrounded() => ClosePopup();
-
-    /// <summary>Phone window was minimized or lost focus — show the popup if still ringing.</summary>
-    public void OnPhoneBackgrounded() => ShowPopupIfNeeded();
-
-    /// <summary>
-    /// The tenant reports no pending inbound offer — clear a real call's popup/ring. Simulated
-    /// calls (dev) are left alone since they aren't backed by a real offer.
-    /// </summary>
-    public void OnNoActiveOffer()
+    public void SetRinging(bool ringing)
     {
-        if (_currentCallId is not null && !_currentCallId.StartsWith("SIM-", StringComparison.Ordinal))
-            Clear();
+        if (ringing) _ring.Play();
+        else _ring.Stop();
     }
 
-    public void HandleStateChanged(Call call)
-    {
-        if (call is null) return;
-        if (call.CallId == _currentCallId && !ContractHelpers.IsRingingState(call.State))
-            Clear(call.CallId);
-    }
+    public void PostToPage(string json) => _actions.PostToPage(json);
+    public void Carry(IncomingCallChoice choice) => _actions.Carry(choice);
 
-    /// <summary>Stop the ring and dismiss the popup for <paramref name="callId"/> (or the current call).</summary>
-    public void Clear(string? callId = null)
-    {
-        if (callId is not null && _currentCallId is not null && callId != _currentCallId) return;
-        _ring.Stop();
-        ClosePopup();
-        _currentCallId = null;
-        _currentCall = null;
-        _currentContext = null;
-    }
+    private IncomingCallWindow? Find(string callId) => _popups.FirstOrDefault(p => p.CallId == callId);
 
-    private void ClosePopup()
+    /// <summary>Stack the popups upward from the bottom-right of the work area, oldest at the bottom.</summary>
+    private void Layout()
     {
-        if (_popup is null) return;
-        var p = _popup;
-        _popup = null;
-        try { p.Close(); } catch { }
+        var wa = SystemParameters.WorkArea;
+        var bottom = wa.Bottom - ScreenMargin;
+        foreach (var popup in _popups)
+        {
+            if (!popup.IsLoaded) continue; // positioned by its own Loaded
+            popup.Left = wa.Right - popup.ActualWidth - ScreenMargin;
+            popup.Top = Math.Max(wa.Top, bottom - popup.ActualHeight);
+            bottom = popup.Top - Gap;
+        }
     }
 
     public void Dispose()
     {
-        Clear();
+        _expiry.Stop();
+        Tracker.Clear();
         _ring.Dispose();
     }
 }
