@@ -90,17 +90,14 @@ public partial class SettingsWindow : Window
 
     private void ReloadPhone_Click(object sender, RoutedEventArgs e)
     {
-        var confirm = MessageBox.Show(
+        var confirmed = AppDialog.Confirm(
             this,
-            "Reload the soft phone now?\n\n" +
-            "This reloads the phone at your tenant domain. If you are on an active call, reloading will " +
-            "disconnect it. Make sure you are not on a call before continuing.",
-            "Reload phone",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning,
-            MessageBoxResult.No);
+            "Reload the soft phone?",
+            "This reloads the phone at your tenant domain. If you are on a call, reloading disconnects it. " +
+            "Make sure you are not on a call before you continue.",
+            confirmText: "Reload phone");
 
-        if (confirm != MessageBoxResult.Yes) return;
+        if (!confirmed) return;
 
         _app.ReloadPhone();
         Close();
@@ -136,7 +133,7 @@ public partial class SettingsWindow : Window
         catch (Exception ex)
         {
             Log.Error("Connection test failed", ex);
-            MessageBox.Show(this, ex.Message, "Connection test", MessageBoxButton.OK, MessageBoxImage.Error);
+            AppDialog.Show(this, "The connection test could not run", ex.Message, AppDialogKind.Error);
         }
         finally
         {

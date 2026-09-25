@@ -75,6 +75,124 @@
             <Setter Property="Padding" Value="18" />
         </Style>
 
+        <!--
+            Action buttons. One rounded template for every window, so buttons look and respond the same
+            everywhere (the stock WPF template turns any button light blue on hover). Hover and press darken
+            whatever color the variant sets, so each variant only picks its colors.
+        -->
+        <Style x:Key="AppFocusVisual">
+            <Setter Property="Control.Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Rectangle Margin="-3" RadiusX="8" RadiusY="8" StrokeThickness="2"
+                                   Stroke="{StaticResource Brand}" Opacity="0.55" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AppButton" TargetType="Button">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinWidth" Value="94" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource AppFocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid SnapsToDevicePixels="True">
+                            <Border x:Name="bg" CornerRadius="6" Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}" />
+                            <Border x:Name="shade" CornerRadius="6" Background="#0F172A" Opacity="0" />
+                            <ContentPresenter Margin="{TemplateBinding Padding}" RecognizesAccessKey="True"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="shade" Property="Opacity" Value="0.07" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="shade" Property="Opacity" Value="0.14" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource AppButton}">
+            <Setter Property="Background" Value="{StaticResource Brand}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brand}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource AppButton}">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#CBD5E1" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+        </Style>
+
+        <Style x:Key="SuccessButton" TargetType="Button" BasedOn="{StaticResource AppButton}">
+            <Setter Property="Background" Value="{StaticResource Ok}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Ok}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource AppButton}">
+            <Setter Property="Background" Value="{StaticResource Fail}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Fail}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <!-- Text input matching the buttons: rounded, brand-colored border while focused. -->
+        <Style x:Key="AppTextBox" TargetType="TextBox">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#CBD5E1" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="bd" CornerRadius="6" SnapsToDevicePixels="True"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          Focusable="False" HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#94A3B8" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Brand}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource Panel}" />
+                                <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="CloseCaptionButton" TargetType="Button" BasedOn="{StaticResource CaptionButton}">
             <Setter Property="Template">
                 <Setter.Value>

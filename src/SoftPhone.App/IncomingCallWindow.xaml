@@ -5,23 +5,37 @@
         WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
         Topmost="True" AllowsTransparency="True" Background="Transparent">
     <Window.Resources>
-        <!-- Compact buttons for a matched record's actions. -->
-        <Style x:Key="CardButton" TargetType="Button">
+        <!-- Compact versions of the app's buttons for a matched record's actions. -->
+        <Style x:Key="CardButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
             <Setter Property="Height" Value="28" />
+            <Setter Property="MinWidth" Value="0" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="Margin" Value="0,6,6,0" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="White" />
-            <Setter Property="Foreground" Value="{StaticResource Ink}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Line}" />
         </Style>
-        <Style x:Key="CardAnswerButton" TargetType="Button" BasedOn="{StaticResource CardButton}">
-            <Setter Property="Background" Value="#16A34A" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+        <Style x:Key="CardAnswerButton" TargetType="Button" BasedOn="{StaticResource SuccessButton}">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Margin" Value="0,6,6,0" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <!-- The call actions: the app's buttons, taller, filling their column. -->
+        <Style x:Key="CallAnswerButton" TargetType="Button" BasedOn="{StaticResource SuccessButton}">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="6,0" />
+        </Style>
+        <Style x:Key="CallDeclineButton" TargetType="Button" BasedOn="{StaticResource DangerButton}">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="6,0" />
+        </Style>
+        <Style x:Key="CallVoicemailButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="6,0" />
         </Style>
     </Window.Resources>
 
@@ -70,15 +84,12 @@
                     <ColumnDefinition x:Name="VoicemailGap" Width="8" />
                     <ColumnDefinition x:Name="VoicemailColumn" Width="*" />
                 </Grid.ColumnDefinitions>
-                <Button Grid.Column="0" x:Name="AnswerButton" Content="Answer" Height="38" Cursor="Hand"
-                        Background="#16A34A" Foreground="White" BorderThickness="0" FontWeight="SemiBold"
+                <Button Grid.Column="0" x:Name="AnswerButton" Content="Answer" Style="{StaticResource CallAnswerButton}"
                         Click="Answer_Click" />
-                <Button Grid.Column="2" x:Name="DeclineButton" Content="Decline" Height="38" Cursor="Hand"
-                        Background="#DC2626" Foreground="White" BorderThickness="0" FontWeight="SemiBold"
+                <Button Grid.Column="2" x:Name="DeclineButton" Content="Decline" Style="{StaticResource CallDeclineButton}"
                         Click="Decline_Click" />
-                <Button Grid.Column="4" x:Name="VoicemailButton" Content="Voicemail" Height="38" Cursor="Hand"
-                        Background="{StaticResource Panel}" Foreground="{StaticResource Ink}"
-                        BorderBrush="{StaticResource Line}" BorderThickness="1" Click="Voicemail_Click" />
+                <Button Grid.Column="4" x:Name="VoicemailButton" Content="Voicemail" Style="{StaticResource CallVoicemailButton}"
+                        Click="Voicemail_Click" />
             </Grid>
         </StackPanel>
     </Border>

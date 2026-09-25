@@ -26,7 +26,7 @@
                         <TextBlock Text="Your organization's soft phone domain." Foreground="{StaticResource Muted}"
                                    Margin="0,1,0,6" />
                         <Grid>
-                            <TextBox x:Name="DomainBox" Height="32" VerticalContentAlignment="Center" Padding="8,0" />
+                            <TextBox x:Name="DomainBox" Style="{StaticResource AppTextBox}" />
                             <TextBlock x:Name="DomainManaged" Text="🔒 Managed" Foreground="{StaticResource Muted}"
                                        HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"
                                        Visibility="Collapsed" />
@@ -49,7 +49,7 @@
                         <TextBlock Text="Reloads the soft phone at your tenant domain. Only do this when you are not on a call — reloading disconnects any call in progress."
                                    Foreground="{StaticResource Muted}" Margin="0,1,0,8" TextWrapping="Wrap" />
                         <Button x:Name="ReloadPhoneButton" Content="Reload phone" HorizontalAlignment="Left"
-                                Padding="12,6" Cursor="Hand" Click="ReloadPhone_Click" />
+                                Style="{StaticResource SecondaryButton}" Click="ReloadPhone_Click" />
                     </StackPanel>
                 </Border>
             </TabItem>
@@ -62,9 +62,8 @@
                                    Text="Verify the background connection can authenticate and reach the telephony hub. Sign in inside the phone window first, then run the test." />
 
                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,14,0,0">
-                            <Button x:Name="RunTestButton" Content="Run connection test" Padding="12,6"
-                                    Background="{StaticResource Brand}" Foreground="White" BorderThickness="0"
-                                    Cursor="Hand" Click="RunTestButton_Click" />
+                            <Button x:Name="RunTestButton" Content="Run connection test"
+                                    Style="{StaticResource PrimaryButton}" Click="RunTestButton_Click" />
                             <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
                                 <Ellipse x:Name="LiveDot" Width="9" Height="9" Fill="#94A3B8" VerticalAlignment="Center" />
                                 <TextBlock x:Name="LiveStatus" Text="Background: idle" Margin="8,0,0,0"
@@ -107,9 +106,9 @@
         <Grid Grid.Row="1" Margin="0,16,0,0">
             <TextBlock x:Name="BuildStamp" VerticalAlignment="Center" Foreground="{StaticResource Muted}" FontSize="11" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Cancel" Width="94" Height="32" Click="Cancel_Click" Margin="0,0,8,0" />
-                <Button x:Name="SaveButton" Content="Save" Width="94" Height="32" Click="Save_Click"
-                        Background="{StaticResource Brand}" Foreground="White" BorderThickness="0" />
+                <Button Content="Cancel" Style="{StaticResource SecondaryButton}" Click="Cancel_Click"
+                        Margin="0,0,8,0" />
+                <Button x:Name="SaveButton" Content="Save" Style="{StaticResource PrimaryButton}" Click="Save_Click" />
             </StackPanel>
         </Grid>
     </Grid>
