@@ -31,6 +31,26 @@ public class UiTests
         }, Timeout, TimeSpan.FromMilliseconds(250)).Result;
     }
 
+    /// <summary>What the app actually had on screen, for a failure message.</summary>
+    private static string DescribeWindows(AppHost host)
+    {
+        try
+        {
+            var windows = host.App.GetAllTopLevelWindows(host.Automation)
+                .Select(w =>
+                {
+                    try { return $"\"{w.Title}\" ({w.ClassName})"; }
+                    catch (Exception ex) { return $"<unreadable: {ex.GetType().Name}>"; }
+                })
+                .ToList();
+            return $"App exited: {host.App.HasExited}. Top-level windows ({windows.Count}): {string.Join(", ", windows)}";
+        }
+        catch (Exception ex)
+        {
+            return $"App exited: {host.App.HasExited}. Listing windows failed: {ex.GetType().Name}: {ex.Message}";
+        }
+    }
+
     private static AutomationElement? WaitFor(Window window, Func<AutomationElement, bool> match)
     {
         return Retry.WhileNull(() =>
@@ -94,7 +114,7 @@ public class UiTests
         // suppressed; minimizing it must surface the popup.
         using var host = AppHost.Launch("--simulate-incoming", seedSettingsJson: "{ }");
         var phone = WaitForWindow(host, w => string.Equals(w.Title, "Soft Phone", StringComparison.OrdinalIgnoreCase));
-        Assert.NotNull(phone);
+        Assert.True(phone is not null, $"The phone window never appeared. {DescribeWindows(host)}");
 
         phone!.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
 
