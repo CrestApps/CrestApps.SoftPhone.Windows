@@ -64,7 +64,7 @@
                                        Text="Enter your organization's soft phone domain to get started. You'll sign in with your normal site login." />
 
                             <TextBlock Text="Tenant domain" FontWeight="SemiBold" Foreground="{StaticResource Ink}" Margin="0,20,0,4" />
-                            <TextBox x:Name="SetupDomainBox" Height="32" VerticalContentAlignment="Center" Padding="8,0"
+                            <TextBox x:Name="SetupDomainBox" Style="{StaticResource AppTextBox}"
                                      KeyDown="SetupDomainBox_KeyDown" />
                             <TextBlock Text="e.g. example.com" Foreground="{StaticResource Muted}"
                                        FontSize="12" Margin="2,4,0,0" />
@@ -74,8 +74,7 @@
                             </Border>
 
                             <Button x:Name="ContinueButton" Content="Continue" Height="38" Margin="0,16,0,0"
-                                    Background="{StaticResource Brand}" Foreground="White" BorderThickness="0"
-                                    FontSize="14" FontWeight="SemiBold" Cursor="Hand" Click="ContinueButton_Click" />
+                                    Style="{StaticResource PrimaryButton}" FontSize="14" Click="ContinueButton_Click" />
                         </StackPanel>
                     </Border>
                 </Border>

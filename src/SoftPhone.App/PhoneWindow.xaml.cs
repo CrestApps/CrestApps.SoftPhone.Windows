@@ -160,8 +160,8 @@ public partial class PhoneWindow : Window
         catch (Exception ex)
         {
             Log.Error("WebView2 init failed", ex);
-            MessageBox.Show(this, $"WebView2 failed to initialize:\n{ex.Message}",
-                "Soft Phone", MessageBoxButton.OK, MessageBoxImage.Error);
+            AppDialog.Show(this, "The phone could not start",
+                $"WebView2 failed to initialize: {ex.Message}", AppDialogKind.Error);
         }
     }
 
