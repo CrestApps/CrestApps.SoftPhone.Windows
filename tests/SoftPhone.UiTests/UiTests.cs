@@ -18,17 +18,51 @@ public class UiTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
+    // The last error a window lookup swallowed, reported when the lookup gives up.
+    private static string? _lastLookupError;
+
     private static Window? WaitForWindow(AppHost host, Func<Window, bool> predicate)
     {
+        _lastLookupError = null;
         return Retry.WhileNull(() =>
         {
-            try
+            Window[] windows;
+            try { windows = host.App.GetAllTopLevelWindows(host.Automation); }
+            catch (Exception ex) { _lastLookupError = $"listing windows: {ex.GetType().Name}: {ex.Message}"; return null; }
+
+            // Test each window on its own: one that cannot be read right now (e.g. the popup while it
+            // opens or closes) must not hide the window being looked for.
+            foreach (var window in windows)
             {
-                var windows = host.App.GetAllTopLevelWindows(host.Automation);
-                return windows.FirstOrDefault(predicate);
+                try
+                {
+                    if (predicate(window)) return window;
+                }
+                catch (Exception ex) { _lastLookupError = $"reading a window: {ex.GetType().Name}: {ex.Message}"; }
             }
-            catch { return null; }
+            return null;
         }, Timeout, TimeSpan.FromMilliseconds(250)).Result;
+    }
+
+    /// <summary>What the app actually had on screen, for a failure message.</summary>
+    private static string DescribeWindows(AppHost host)
+    {
+        try
+        {
+            var windows = host.App.GetAllTopLevelWindows(host.Automation)
+                .Select(w =>
+                {
+                    try { return $"\"{w.Title}\" ({w.ClassName})"; }
+                    catch (Exception ex) { return $"<unreadable: {ex.GetType().Name}>"; }
+                })
+                .ToList();
+            return $"App exited: {host.App.HasExited}. Top-level windows ({windows.Count}): {string.Join(", ", windows)}. " +
+                $"Last lookup error: {_lastLookupError ?? "none"}";
+        }
+        catch (Exception ex)
+        {
+            return $"App exited: {host.App.HasExited}. Listing windows failed: {ex.GetType().Name}: {ex.Message}";
+        }
     }
 
     private static AutomationElement? WaitFor(Window window, Func<AutomationElement, bool> match)
@@ -94,7 +128,7 @@ public class UiTests
         // suppressed; minimizing it must surface the popup.
         using var host = AppHost.Launch("--simulate-incoming", seedSettingsJson: "{ }");
         var phone = WaitForWindow(host, w => string.Equals(w.Title, "Soft Phone", StringComparison.OrdinalIgnoreCase));
-        Assert.NotNull(phone);
+        Assert.True(phone is not null, $"The phone window never appeared. {DescribeWindows(host)}");
 
         phone!.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
 

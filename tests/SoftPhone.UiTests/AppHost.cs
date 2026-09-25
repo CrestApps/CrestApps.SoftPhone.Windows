@@ -31,6 +31,8 @@ public sealed class AppHost : IDisposable
         if (seedSettingsJson is not null)
             File.WriteAllText(Path.Combine(settingsDir, "settings.json"), seedSettingsJson);
 
+        WaitForPreviousInstancesToExit(exe);
+
         var psi = new ProcessStartInfo(exe, arguments) { UseShellExecute = false };
         psi.Environment["SOFTPHONE_SETTINGS_DIR"] = settingsDir;
         // Keep each test's WebView2 profile isolated too.
@@ -38,6 +40,27 @@ public sealed class AppHost : IDisposable
 
         var app = Application.Launch(psi);
         return new AppHost(app, settingsDir);
+    }
+
+    /// <summary>
+    /// A still-running copy (e.g. from a previous test) owns the single-instance mutex, and a new launch
+    /// would only signal it and exit. Wait for any such copy of this exe to be gone first.
+    /// </summary>
+    private static void WaitForPreviousInstancesToExit(string exe)
+    {
+        var name = Path.GetFileNameWithoutExtension(exe);
+        foreach (var process in Process.GetProcessesByName(name))
+        {
+            using (process)
+            {
+                try
+                {
+                    if (string.Equals(process.MainModule?.FileName, exe, StringComparison.OrdinalIgnoreCase))
+                        process.WaitForExit(15_000);
+                }
+                catch { /* exited meanwhile, or not ours to inspect */ }
+            }
+        }
     }
 
     /// <summary>Walk up from the test output to the repo root and find the app exe.</summary>
@@ -61,6 +84,17 @@ public sealed class AppHost : IDisposable
     {
         try { App.Close(); } catch { }
         try { if (!App.HasExited) App.Kill(); } catch { }
+
+        // Kill only asks the process to end. Until it has, it still holds the app's single-instance
+        // mutex, so the next test's launch would find a "primary" instance, signal it, and exit at
+        // once — leaving that test waiting for a window that never opens.
+        try
+        {
+            using var process = Process.GetProcessById(App.ProcessId);
+            process.WaitForExit(15_000);
+        }
+        catch (ArgumentException) { /* already gone */ }
+        catch (InvalidOperationException) { /* already gone */ }
         Automation.Dispose();
         try { if (Directory.Exists(_settingsDir)) Directory.Delete(_settingsDir, true); } catch { }
     }

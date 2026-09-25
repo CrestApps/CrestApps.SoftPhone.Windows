@@ -51,6 +51,12 @@ jobs:
         run: dotnet build src/SoftPhone.App/SoftPhone.App.csproj -c Debug
       - name: UI tests (FlaUI)
         run: dotnet test tests/SoftPhone.UiTests/SoftPhone.UiTests.csproj -c Debug --logger "trx;LogFileName=ui.trx"
+      - name: App log (on failure)
+        if: failure()
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:LOCALAPPDATA 'CrestApps\SoftPhone\logs\app.log'
+          if (Test-Path $log) { Get-Content $log -Tail 200 } else { "No app log at $log" }
 
   # The MSIX package is built (best-effort) in release.yml, gated on STORE_APP_ID — it isn't
   # needed until the Microsoft Store account is set up, so it's kept out of CI to avoid noise.
