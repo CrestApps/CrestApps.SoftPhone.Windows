@@ -1,5 +1,7 @@
 # CrestApps Soft Phone — Windows
 
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/MikeAlhayek)
+
 An always-on Windows tray app that turns your organization's soft phone into a native
 desktop companion — so **inbound calls ring even when the phone window is closed**, and a
 live WebRTC call keeps running in its own window while you work anywhere else.
@@ -101,6 +103,12 @@ The tag is the single source of version truth. See [docs/RELEASING.md](docs/RELE
 
 The app connects only to the tenant domain you configure. It sends no data to the
 developer. See [docs/PRIVACY.md](docs/PRIVACY.md).
+
+## ❤️ Sponsor
+
+This project is free and open source, built and maintained alongside full-time work. If it saves you time or powers something you ship, please consider [sponsoring on GitHub](https://github.com/sponsors/MikeAlhayek). Sponsorship funds new features, faster fixes, documentation and long-term maintenance, and companies using it in production are especially encouraged to sponsor.
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor_on_GitHub-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white&style=for-the-badge)](https://github.com/sponsors/MikeAlhayek)
 
 ## License
 
