@@ -69,6 +69,15 @@ public sealed class RingingCall
 
     public bool IsSimulated => CallId.StartsWith("SIM-", StringComparison.Ordinal);
 
+    /// <summary>
+    /// When the server said the offer stops ringing (<c>expiresUtc</c> from our background connection),
+    /// kept even once the page owns the call and its details win.
+    /// </summary>
+    public DateTimeOffset? OfferExpiresUtc { get; internal set; }
+
+    /// <summary>The offer's reservation id from our background connection, kept like <see cref="OfferExpiresUtc"/>.</summary>
+    public string? OfferId { get; internal set; }
+
     internal bool PopupOpen;
     internal bool PopupRendered;
     internal bool Confirmed;
@@ -85,12 +94,22 @@ public sealed class RingingCall
 /// the phone window gains focus, and not when our background poll finds no Contact Center offer.
 /// We confirm to the page only after the popup is rendered, and tell it the moment the popup is
 /// closed without an answer so it shows its modal again.
+///
+/// A person takes one call at a time, so at most one call rings in a popup. While the page takes
+/// part, it is the one that decides which call that is: it reports a single call at a time (and
+/// refuses an offer while the agent is on a call), so only the call it reports now gets a popup.
+/// A call only our background connection heard about waits, hidden, for the page to report it.
+/// Two exceptions keep a popup from outliving its call when the page never ends it: the server
+/// saying the call was answered elsewhere closes it, and so does the offer's expiry passing.
 /// </summary>
 public sealed class IncomingCallTracker
 {
     private readonly IIncomingCallSurface _surface;
     private readonly Action<string>? _log;
     private readonly List<RingingCall> _calls = new();
+
+    // The call the page reports now. The page reports one call at a time.
+    private string? _pageCallId;
 
     public IncomingCallTracker(IIncomingCallSurface surface, Action<string>? log = null)
     {
@@ -115,6 +134,12 @@ public sealed class IncomingCallTracker
 
         var ringing = Find(call.CallId) ?? Add(call, context ?? new CallContext());
         ringing.FromBackground = true;
+
+        if (ExpiryOf(context) is { } expires)
+            ringing.OfferExpiresUtc = expires;
+
+        if (context?.Properties is { } props && props.TryGetValue("reservationId", out var offerId) && !string.IsNullOrEmpty(offerId))
+            ringing.OfferId = offerId;
 
         // Once the page owns the call, its details win (it filters the tenant's own number, etc.).
         if (!ringing.FromPage && !ringing.Handled && !ringing.Dismissed)
@@ -162,30 +187,58 @@ public sealed class IncomingCallTracker
         foreach (var ringing in _calls.ToList())
         {
             var matches = (!string.IsNullOrEmpty(callId) && ringing.CallId == callId)
-                || (!string.IsNullOrEmpty(offerId) && PropertyOf(ringing, "reservationId") == offerId);
+                || (!string.IsNullOrEmpty(offerId)
+                    && (PropertyOf(ringing, "reservationId") == offerId || ringing.OfferId == offerId));
             if (!matches) continue;
 
-            // The page hears the same event: it clears the call itself, or finishes the accept it made.
-            if (ringing.FromPage)
-                ringing.FromBackground = false;
-            else
+            if (!ringing.FromPage)
+            {
                 Remove(ringing);
+                continue;
+            }
+
+            // The page hears the same event and ends the call itself, or finishes the accept it made. Its
+            // popup closes now all the same: the call was answered, so there is nothing left to ask, and a
+            // page that never ends it (asleep, or it missed the event) must not leave a ringing popup up
+            // for a call the agent is already talking on. The call is kept, handled, until the page ends it.
+            ringing.FromBackground = false;
+            if (!ringing.Handled)
+            {
+                _log?.Invoke($"Call {ringing.CallId} was answered elsewhere.");
+                ringing.Handled = true;
+                ClosePopup(ringing);
+                Refresh();
+            }
         }
     }
 
     /// <summary>
     /// Drop background calls whose offer reservation has expired (<c>expiresUtc</c>), the same moment
-    /// the page gives up on it, instead of waiting for the next current-offer poll.
+    /// the page gives up on it, instead of waiting for the next current-offer poll. A call the page
+    /// reported is the page's to end, but only for <see cref="PageExpiryGrace"/> past the expiry our
+    /// background connection heard: a page that never ends it must not leave its popup up for good.
     /// </summary>
     public void ExpireDue(DateTimeOffset now)
     {
         foreach (var ringing in _calls.ToList())
         {
-            if (ringing.FromPage || ringing.IsSimulated) continue;
-            if (PropertyOf(ringing, "expiresUtc") is { } raw
-                && DateTimeOffset.TryParse(raw, System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.RoundtripKind, out var expires)
-                && now > expires + ExpiryGrace)
+            if (ringing.IsSimulated) continue;
+
+            if (ringing.FromPage)
+            {
+                if (ringing.Handled || ringing.OfferExpiresUtc is not { } pageExpires || now <= pageExpires + PageExpiryGrace)
+                    continue;
+
+                _log?.Invoke($"Offer {ringing.CallId} expired and the page never ended it.");
+
+                // Its modal was hidden on our word: let the page show it again if it still rings there.
+                if (PageReady && !ringing.Dismissed)
+                    _surface.PostToPage(HostBridge.Dismissed(ringing.CallId));
+                Remove(ringing);
+                continue;
+            }
+
+            if ((ExpiryOf(ringing.Context) ?? ringing.OfferExpiresUtc) is { } expires && now > expires + ExpiryGrace)
             {
                 _log?.Invoke($"Offer {ringing.CallId} expired.");
                 Remove(ringing);
@@ -195,6 +248,19 @@ public sealed class IncomingCallTracker
 
     /// <summary>Matches the page's own margin past <c>expiresUtc</c> before it clears an offer.</summary>
     public static readonly TimeSpan ExpiryGrace = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
+    /// How long past the offer's expiry a call the page reported may stay when the page never ends it.
+    /// Longer than <see cref="ExpiryGrace"/> so the page, which ends it itself, always goes first.
+    /// </summary>
+    public static readonly TimeSpan PageExpiryGrace = TimeSpan.FromSeconds(5);
+
+    private static DateTimeOffset? ExpiryOf(CallContext? context) =>
+        context?.Properties is { } props && props.TryGetValue("expiresUtc", out var raw) && !string.IsNullOrEmpty(raw)
+            && DateTimeOffset.TryParse(raw, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.RoundtripKind, out var expires)
+            ? expires
+            : null;
 
     private static string? PropertyOf(RingingCall ringing, string key) =>
         ringing.Context.Properties is { } props && props.TryGetValue(key, out var value) && !string.IsNullOrEmpty(value)
@@ -214,6 +280,7 @@ public sealed class IncomingCallTracker
         {
             // The page that rang these calls is gone. A Contact Center offer that still rings comes
             // back through our own poll; a call only the page knew about ended with it.
+            _pageCallId = null;
             foreach (var ringing in _calls.ToList())
             {
                 if (!ringing.FromPage) continue;
@@ -251,6 +318,16 @@ public sealed class IncomingCallTracker
     private void PageIncoming(PageIncomingCallMessage message)
     {
         if (!PageReady) return;
+
+        // The page reports one call at a time and ends the last one before it reports the next, so a
+        // different call still on record as the page's is one whose end we missed: it is over too.
+        if (_pageCallId is not null && _pageCallId != message.Call.CallId && Find(_pageCallId) is { } previous)
+        {
+            _log?.Invoke($"Page: call {previous.CallId} replaced by {message.Call.CallId}.");
+            Remove(previous);
+        }
+
+        _pageCallId = message.Call.CallId;
 
         var ringing = Find(message.Call.CallId) ?? Add(message.Call, message.Context);
         ringing.FromPage = true;
@@ -339,8 +416,7 @@ public sealed class IncomingCallTracker
             // With the page taking part, the popup is the only prompt the page will not duplicate, so it
             // shows regardless of focus. Without it (older server), the page shows its own modal while the
             // phone window is focused, so the popup stays out of the way there.
-            var wanted = !ringing.Handled && !ringing.Dismissed
-                && (PageReady || ringing.FromPage || !_surface.IsPhoneWindowFocused);
+            var wanted = Rings(ringing) && (PageReady || !_surface.IsPhoneWindowFocused);
 
             if (wanted && !ringing.PopupOpen)
             {
@@ -355,8 +431,15 @@ public sealed class IncomingCallTracker
             }
         }
 
-        _surface.SetRinging(_surface.RingtoneEnabled && _calls.Any(c => !c.Handled && !c.Dismissed));
+        _surface.SetRinging(_surface.RingtoneEnabled && _calls.Any(Rings));
     }
+
+    // Whether the call is one the agent is being asked to take. With the page taking part, that is only
+    // the call the page reports now: one call rings at a time, and the page knows which (it refuses an
+    // offer while the agent is on a call). A simulated call is the app's own test and always rings.
+    private bool Rings(RingingCall ringing) =>
+        !ringing.Handled && !ringing.Dismissed
+        && (!PageReady || ringing.IsSimulated || (ringing.FromPage && ringing.CallId == _pageCallId));
 
     private RingingCall Add(Call call, CallContext context)
     {
@@ -396,6 +479,7 @@ public sealed class IncomingCallTracker
     {
         ClosePopup(ringing);
         _calls.Remove(ringing);
+        if (ringing.CallId == _pageCallId) _pageCallId = null;
         Refresh();
     }
 
