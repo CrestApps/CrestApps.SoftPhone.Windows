@@ -41,6 +41,7 @@ jobs:
       STORE_APP_ID: ${{ secrets.STORE_APP_ID }}
     outputs:
       version: ${{ steps.ver.outputs.version }}
+      store: ${{ steps.store.outcome }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -161,10 +162,12 @@ jobs:
 
       # ---- Store submission on tag (opt-in: only when STORE_APP_ID is set) ----
       # Pushing a vX.Y.Z tag also submits the freshly built MSIX to the Microsoft Store and
-      # auto-commits it. Best-effort (continue-on-error) so a Store hiccup never blocks the
-      # downloadable installer/zip release. Smoke-test the pipeline first with publish-manual.yml
-      # (commit unchecked) to leave a draft submission before enabling this on real tags.
+      # auto-commits it. It doesn't block the downloadable installer/zip release
+      # (continue-on-error), but a failure fails the github-release job once the release is
+      # published, so it is never silent. Smoke-test with publish-manual.yml (commit unchecked)
+      # to leave a draft submission.
       - name: Submit to the Store
+        id: store
         if: ${{ env.STORE_APP_ID != '' && startsWith(github.ref, 'refs/tags/') }}
         continue-on-error: true
         shell: pwsh
@@ -203,6 +206,16 @@ jobs:
             artifacts/dist/**
             artifacts/**/*.msix
             artifacts/**/*.msixbundle
+
+      # The Store step is continue-on-error so the release above is always published; a failed
+      # submission still has to show, so it fails this job once the release exists.
+      - name: Report a failed Store submission
+        if: ${{ needs.build.outputs.store == 'failure' }}
+        run: |
+          echo "## Microsoft Store submission failed" >> "$GITHUB_STEP_SUMMARY"
+          echo "The GitHub release was published, but the package was not submitted to the Store. See the build job's 'Submit to the Store' step, fix it, and resubmit with the Publish (manual) workflow." >> "$GITHUB_STEP_SUMMARY"
+          echo "::error title=Microsoft Store submission failed::The release was published, but the Store submission failed. See the build job's 'Submit to the Store' step."
+          exit 1
 
   # Microsoft Store submission runs in the build job above, but only when STORE_APP_ID is set
   # (opt-in) and only on a tag, and it's best-effort — so tagging always produces a clean,
