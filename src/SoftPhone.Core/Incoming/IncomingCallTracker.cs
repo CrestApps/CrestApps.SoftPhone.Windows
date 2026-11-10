@@ -111,10 +111,18 @@ public sealed class IncomingCallTracker
     // The call the page reports now. The page reports one call at a time.
     private string? _pageCallId;
 
-    public IncomingCallTracker(IIncomingCallSurface surface, Action<string>? log = null)
+    // Calls answered on another of the agent's phones, by call id: the offer id the answer named and when.
+    private readonly Dictionary<string, (string? OfferId, DateTimeOffset At)> _answeredElsewhere = new();
+    private readonly Func<DateTimeOffset> _clock;
+
+    /// <summary>How long a call answered elsewhere is kept from popping again when the page reports it ringing.</summary>
+    public static readonly TimeSpan AnsweredElsewhereMemory = TimeSpan.FromMinutes(2);
+
+    public IncomingCallTracker(IIncomingCallSurface surface, Action<string>? log = null, Func<DateTimeOffset>? clock = null)
     {
         _surface = surface;
         _log = log;
+        _clock = clock ?? (() => DateTimeOffset.UtcNow);
     }
 
     /// <summary>True while the loaded page takes part in the handoff (it answered our host-ready).</summary>
@@ -132,8 +140,19 @@ public sealed class IncomingCallTracker
     {
         if (call is null || string.IsNullOrEmpty(call.CallId)) return;
 
+        // The server offering the call now, under an offer other than the one answered elsewhere, is a new offer.
+        var reportedOfferId = context?.Properties is { } offered && offered.TryGetValue("reservationId", out var id) ? id : null;
+        if (_answeredElsewhere.TryGetValue(call.CallId, out var answered)
+            && !string.IsNullOrEmpty(reportedOfferId) && reportedOfferId != answered.OfferId)
+        {
+            _answeredElsewhere.Remove(call.CallId);
+        }
+
         var ringing = Find(call.CallId) ?? Add(call, context ?? new CallContext());
         ringing.FromBackground = true;
+
+        if (IsAnsweredElsewhere(call.CallId))
+            ringing.Handled = true;
 
         if (ExpiryOf(context) is { } expires)
             ringing.OfferExpiresUtc = expires;
@@ -184,12 +203,19 @@ public sealed class IncomingCallTracker
     /// </summary>
     public void BackgroundCallAnswered(string? callId, string? offerId)
     {
+        // The platform reports the call ringing while it connects the phone that answered, and the page may report
+        // it ringing again: remembered, so that does not pop a popup that would outlive the call.
+        if (!string.IsNullOrEmpty(callId))
+            RememberAnsweredElsewhere(callId, offerId);
+
         foreach (var ringing in _calls.ToList())
         {
             var matches = (!string.IsNullOrEmpty(callId) && ringing.CallId == callId)
                 || (!string.IsNullOrEmpty(offerId)
                     && (PropertyOf(ringing, "reservationId") == offerId || ringing.OfferId == offerId));
             if (!matches) continue;
+
+            RememberAnsweredElsewhere(ringing.CallId, offerId);
 
             if (!ringing.FromPage)
             {
@@ -254,6 +280,18 @@ public sealed class IncomingCallTracker
     /// Longer than <see cref="ExpiryGrace"/> so the page, which ends it itself, always goes first.
     /// </summary>
     public static readonly TimeSpan PageExpiryGrace = TimeSpan.FromSeconds(5);
+
+    private void RememberAnsweredElsewhere(string callId, string? offerId)
+    {
+        var now = _clock();
+        foreach (var stale in _answeredElsewhere.Where(e => now - e.Value.At > AnsweredElsewhereMemory).Select(e => e.Key).ToList())
+            _answeredElsewhere.Remove(stale);
+
+        _answeredElsewhere[callId] = (string.IsNullOrEmpty(offerId) ? null : offerId, now);
+    }
+
+    private bool IsAnsweredElsewhere(string callId) =>
+        _answeredElsewhere.TryGetValue(callId, out var answered) && _clock() - answered.At <= AnsweredElsewhereMemory;
 
     private static DateTimeOffset? ExpiryOf(CallContext? context) =>
         context?.Properties is { } props && props.TryGetValue("expiresUtc", out var raw) && !string.IsNullOrEmpty(raw)
@@ -331,6 +369,13 @@ public sealed class IncomingCallTracker
 
         var ringing = Find(message.Call.CallId) ?? Add(message.Call, message.Context);
         ringing.FromPage = true;
+
+        if (IsAnsweredElsewhere(ringing.CallId) && !ringing.Handled)
+        {
+            _log?.Invoke($"Page: call {ringing.CallId} reported ringing after it was answered elsewhere; no popup.");
+            ringing.Handled = true;
+            Refresh();
+        }
 
         // The agent already chose for this call here (e.g. answered it from a background popup): the
         // page finishes that. We do not confirm, so if it still rings the page shows its own modal.

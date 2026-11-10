@@ -54,10 +54,24 @@ public partial class IncomingCallWindow : Window
     }
 
     /// <summary>Close on the coordinator's behalf (the call ended or was handled) — not a dismissal.</summary>
+    /// <remarks>
+    /// Hidden first, so a close that fails still takes it off screen: an agent's popups for two calls
+    /// answered elsewhere were closed half a second after they opened and stayed up until a restart.
+    /// </remarks>
     public void CloseByHost()
     {
         _closingByHost = true;
-        try { Close(); } catch { }
+        try { Hide(); } catch (Exception ex) { Log.Error($"Hiding the popup for {CallId} failed.", ex); }
+        try { Close(); } catch (Exception ex) { Log.Error($"Closing the popup for {CallId} failed.", ex); }
+    }
+
+    /// <summary>True once the window has closed.</summary>
+    public bool IsClosed { get; private set; }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        IsClosed = true;
+        base.OnClosed(e);
     }
 
     /// <summary>(Re)draw the caller details and matched records.</summary>

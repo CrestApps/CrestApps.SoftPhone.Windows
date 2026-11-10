@@ -31,6 +31,9 @@ public sealed class IncomingCallCoordinator : IIncomingCallSurface, IDisposable
     private readonly IncomingCallActions _actions;
     private readonly RingtonePlayer _ring = new();
     private readonly List<IncomingCallWindow> _popups = new();
+
+    // Every popup window opened and not yet closed, including any the tracker asked to close that did not.
+    private readonly List<IncomingCallWindow> _windows = new();
     private readonly DispatcherTimer _expiry;
 
     public IncomingCallCoordinator(App app, IncomingCallActions actions)
@@ -45,6 +48,7 @@ public sealed class IncomingCallCoordinator : IIncomingCallSurface, IDisposable
         _expiry.Tick += (_, _) =>
         {
             if (Tracker.Calls.Count > 0) Tracker.ExpireDue(DateTimeOffset.UtcNow);
+            SweepOrphanedPopups();
         };
         _expiry.Start();
     }
@@ -85,6 +89,7 @@ public sealed class IncomingCallCoordinator : IIncomingCallSurface, IDisposable
         };
 
         _popups.Add(popup);
+        _windows.Add(popup);
         popup.Show();
         Layout();
         popup.Activate();
@@ -112,6 +117,23 @@ public sealed class IncomingCallCoordinator : IIncomingCallSurface, IDisposable
 
     private IncomingCallWindow? Find(string callId) => _popups.FirstOrDefault(p => p.CallId == callId);
 
+    /// <summary>
+    /// Close any popup window still on screen that the tracker no longer shows. A popup the tracker
+    /// closed must never stay up: one that does rings for a call that is long over, and its buttons
+    /// act on nothing.
+    /// </summary>
+    private void SweepOrphanedPopups()
+    {
+        _windows.RemoveAll(window => window.IsClosed);
+
+        foreach (var window in _windows.Where(window => !_popups.Contains(window)).ToList())
+        {
+            Log.Warn($"Popup for {window.CallId} was still open after it was closed; closing it again.");
+            window.CloseByHost();
+            if (window.IsClosed) _windows.Remove(window);
+        }
+    }
+
     /// <summary>Stack the popups upward from the bottom-right of the work area, oldest at the bottom.</summary>
     private void Layout()
     {
@@ -130,6 +152,7 @@ public sealed class IncomingCallCoordinator : IIncomingCallSurface, IDisposable
     {
         _expiry.Stop();
         Tracker.Clear();
+        SweepOrphanedPopups();
         _ring.Dispose();
     }
 }

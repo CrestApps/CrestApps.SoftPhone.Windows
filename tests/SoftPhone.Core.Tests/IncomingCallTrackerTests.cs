@@ -23,7 +23,8 @@ public class IncomingCallTrackerTests
         public List<IncomingCallChoice> Carried { get; } = new();
         public bool Ringing { get; private set; }
 
-        public void ShowPopup(RingingCall call) => Open.Add(call.CallId);
+        public List<string> Shown { get; } = new();
+        public void ShowPopup(RingingCall call) { Open.Add(call.CallId); Shown.Add(call.CallId); }
         public void UpdatePopup(RingingCall call) => Updated.Add(call.CallId);
         public void ClosePopup(string callId) => Open.Remove(callId);
         public void SetRinging(bool ringing) => Ringing = ringing;
@@ -445,6 +446,66 @@ public class IncomingCallTrackerTests
         tracker.Page(new PageIncomingCallEndedMessage("c1"));
 
         Assert.Null(tracker.Find("c1"));
+    }
+
+    [Fact]
+    public void A_call_answered_elsewhere_that_the_page_reports_ringing_again_gets_no_popup()
+    {
+        // Regression, replaying an agent's log: the offer was answered in another browser, the page ended
+        // its prompt, then a late "Ringing" report made the page report the call again. The popup the app
+        // opened for it was closed half a second later, but its window stayed on screen until a restart.
+        var (tracker, surface) = ReadyTracker();
+        var offer = new CallContext { Properties = new() { ["reservationId"] = "res-1" } };
+
+        tracker.BackgroundIncoming(RingingCall("c1"), offer);
+        tracker.Page(PageCall("c1"));
+        tracker.BackgroundCallAnswered("c1", "res-1");
+        tracker.Page(new PageIncomingCallEndedMessage("c1"));
+
+        var shownBefore = surface.Shown.Count;
+
+        tracker.Page(PageCall("c1")); // the late "Ringing"
+
+        Assert.Equal(shownBefore, surface.Shown.Count);
+        Assert.Empty(surface.Open);
+        Assert.False(surface.Ringing);
+
+        tracker.Page(new PageIncomingCallEndedMessage("c1")); // "Connected"
+
+        Assert.Null(tracker.Find("c1"));
+    }
+
+    [Fact]
+    public void A_call_answered_elsewhere_rings_again_when_it_is_offered_under_a_new_offer()
+    {
+        var (tracker, surface) = ReadyTracker();
+
+        tracker.BackgroundCallAnswered("c1", "res-1");
+        tracker.BackgroundIncoming(RingingCall("c1"), new CallContext { Properties = new() { ["reservationId"] = "res-1" } });
+        tracker.Page(PageCall("c1"));
+
+        Assert.Empty(surface.Open); // the same, answered offer
+
+        tracker.Page(new PageIncomingCallEndedMessage("c1"));
+        tracker.BackgroundIncoming(RingingCall("c1"), new CallContext { Properties = new() { ["reservationId"] = "res-2" } });
+        tracker.Page(PageCall("c1"));
+
+        Assert.Equal(new HashSet<string> { "c1" }, surface.Open);
+    }
+
+    [Fact]
+    public void A_call_answered_elsewhere_is_forgotten_after_the_memory()
+    {
+        var now = new DateTimeOffset(2026, 11, 10, 19, 30, 0, TimeSpan.Zero);
+        var surface = new FakeSurface();
+        var tracker = new IncomingCallTracker(surface, clock: () => now);
+        tracker.PageBridgeChanged(true);
+
+        tracker.BackgroundCallAnswered("c1", null);
+        now += IncomingCallTracker.AnsweredElsewhereMemory + TimeSpan.FromSeconds(1);
+        tracker.Page(PageCall("c1"));
+
+        Assert.Equal(new HashSet<string> { "c1" }, surface.Open);
     }
 
     [Fact]
