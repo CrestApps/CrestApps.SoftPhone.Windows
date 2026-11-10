@@ -23,7 +23,8 @@ public class IncomingCallTrackerTests
         public List<IncomingCallChoice> Carried { get; } = new();
         public bool Ringing { get; private set; }
 
-        public void ShowPopup(RingingCall call) => Open.Add(call.CallId);
+        public List<string> Shown { get; } = new();
+        public void ShowPopup(RingingCall call) { Open.Add(call.CallId); Shown.Add(call.CallId); }
         public void UpdatePopup(RingingCall call) => Updated.Add(call.CallId);
         public void ClosePopup(string callId) => Open.Remove(callId);
         public void SetRinging(bool ringing) => Ringing = ringing;
@@ -158,9 +159,10 @@ public class IncomingCallTrackerTests
     {
         var (tracker, surface) = ReadyTracker();
 
-        tracker.BackgroundIncoming(RingingCall("c1"), new CallContext());
+        tracker.Page(PageCall("c1"));
         surface.Open.Remove("c1");
         tracker.PopupClosedByAgent("c1");
+        surface.Posted.Clear();
         tracker.Page(PageCall("c1"));
 
         Assert.Equal(new[] { ("incoming-call-dismissed", (string?)"c1") }, surface.Messages);
@@ -187,9 +189,10 @@ public class IncomingCallTrackerTests
         var (tracker, _) = ReadyTracker();
 
         tracker.Page(PageCall("c1"));
-        tracker.Page(PageCall("c2"));
-
         Assert.Equal(IncomingCallRoute.Page, tracker.Choose("c1", IncomingCallAction.Decline)!.Route);
+
+        tracker.Page(new PageIncomingCallEndedMessage("c1"));
+        tracker.Page(PageCall("c2"));
         Assert.Equal(IncomingCallRoute.Page, tracker.Choose("c2", IncomingCallAction.Voicemail)!.Route);
     }
 
@@ -235,35 +238,86 @@ public class IncomingCallTrackerTests
     }
 
     [Fact]
-    public void A_second_call_gets_its_own_popup()
+    public void Only_the_call_the_page_reports_gets_a_popup_while_the_page_takes_part()
     {
+        // Regression: an agent saw two ringing popups at once, the page's call and an offer only our
+        // background connection reported. One call rings at a time, and the page decides which.
         var (tracker, surface) = ReadyTracker();
 
         tracker.Page(PageCall("c1"));
         tracker.BackgroundIncoming(RingingCall("c2"), new CallContext());
 
-        Assert.Equal(new HashSet<string> { "c1", "c2" }, surface.Open);
+        Assert.Equal(new HashSet<string> { "c1" }, surface.Open);
+        Assert.True(surface.Ringing);
 
-        tracker.Choose("c1", IncomingCallAction.Answer);
+        tracker.Page(new PageIncomingCallEndedMessage("c1"));
+
+        Assert.Empty(surface.Open); // the page has not reported c2
+        Assert.False(surface.Ringing);
+
+        tracker.Page(PageCall("c2"));
 
         Assert.Equal(new HashSet<string> { "c2" }, surface.Open);
-        Assert.True(surface.Ringing);
     }
 
     [Fact]
-    public void Background_popup_is_confirmed_the_moment_the_page_claims_the_call()
+    public void An_offer_the_page_does_not_report_never_pops_while_the_page_takes_part()
+    {
+        // The page refuses an offer while the agent is on a call; our background connection still hears it.
+        var (tracker, surface) = ReadyTracker();
+
+        tracker.BackgroundIncoming(RingingCall("c1"), new CallContext());
+
+        Assert.Empty(surface.Open);
+        Assert.False(surface.Ringing);
+        Assert.NotNull(tracker.Find("c1"));
+
+        // Without the page, our own popup is the prompt again.
+        tracker.PageBridgeChanged(false);
+
+        Assert.Equal(new HashSet<string> { "c1" }, surface.Open);
+    }
+
+    [Fact]
+    public void A_simulated_call_pops_while_the_page_takes_part()
+    {
+        var (tracker, surface) = ReadyTracker();
+
+        tracker.BackgroundIncoming(RingingCall("SIM-1"), new CallContext());
+
+        Assert.Equal(new HashSet<string> { "SIM-1" }, surface.Open);
+    }
+
+    [Fact]
+    public void Page_reporting_a_new_call_drops_the_one_whose_end_was_missed()
+    {
+        var (tracker, surface) = ReadyTracker();
+
+        tracker.Page(PageCall("c1"));
+        tracker.Page(PageCall("c2"));
+
+        Assert.Null(tracker.Find("c1"));
+        Assert.Equal(new HashSet<string> { "c2" }, surface.Open);
+    }
+
+    [Fact]
+    public void Background_call_is_shown_and_confirmed_the_moment_the_page_claims_it()
     {
         var (tracker, surface) = ReadyTracker();
 
         tracker.BackgroundIncoming(RingingCall("c1"), new CallContext());
-        tracker.PopupRendered("c1");
 
-        Assert.Empty(surface.Posted); // the page has not asked yet
+        Assert.Empty(surface.Open); // waits for the page
 
         tracker.Page(PageCall("c1", "Jane Doe"));
 
+        Assert.Contains("c1", surface.Open);
+        Assert.Equal("Jane Doe", tracker.Find("c1")!.Context.Cards![0].Title);
+        Assert.Empty(surface.Posted); // not before it is rendered
+
+        tracker.PopupRendered("c1");
+
         Assert.Equal(new[] { ("incoming-call-shown", (string?)"c1") }, surface.Messages);
-        Assert.Contains("c1", surface.Updated);
     }
 
     [Fact]
@@ -370,17 +424,101 @@ public class IncomingCallTrackerTests
     }
 
     [Fact]
-    public void Answered_elsewhere_leaves_a_page_call_to_the_page()
+    public void Answered_elsewhere_closes_a_page_popup_and_keeps_the_call_until_the_page_ends_it()
     {
-        // The page hears the same event and clears the call (or finishes an accept it made itself).
+        // Regression: the agent answered an offer in another browser and talked for ten minutes while
+        // this app's popup kept ringing for it, because the page here never ended it.
         var (tracker, surface) = ReadyTracker();
 
         tracker.Page(PageCall("c1"));
+        tracker.PopupRendered("c1");
         tracker.BackgroundCallAnswered("c1", null);
+
+        Assert.Empty(surface.Open);
+        Assert.False(surface.Ringing);
+        Assert.True(tracker.Find("c1")!.Handled);
+
+        // The page repeating the call does not bring the popup back.
+        tracker.Page(PageCall("c1"));
+
+        Assert.Empty(surface.Open);
+
+        tracker.Page(new PageIncomingCallEndedMessage("c1"));
+
+        Assert.Null(tracker.Find("c1"));
+    }
+
+    [Fact]
+    public void A_call_answered_elsewhere_that_the_page_reports_ringing_again_gets_no_popup()
+    {
+        // Regression, replaying an agent's log: the offer was answered in another browser, the page ended
+        // its prompt, then a late "Ringing" report made the page report the call again. The popup the app
+        // opened for it was closed half a second later, but its window stayed on screen until a restart.
+        var (tracker, surface) = ReadyTracker();
+        var offer = new CallContext { Properties = new() { ["reservationId"] = "res-1" } };
+
+        tracker.BackgroundIncoming(RingingCall("c1"), offer);
+        tracker.Page(PageCall("c1"));
+        tracker.BackgroundCallAnswered("c1", "res-1");
+        tracker.Page(new PageIncomingCallEndedMessage("c1"));
+
+        var shownBefore = surface.Shown.Count;
+
+        tracker.Page(PageCall("c1")); // the late "Ringing"
+
+        Assert.Equal(shownBefore, surface.Shown.Count);
+        Assert.Empty(surface.Open);
+        Assert.False(surface.Ringing);
+
+        tracker.Page(new PageIncomingCallEndedMessage("c1")); // "Connected"
+
+        Assert.Null(tracker.Find("c1"));
+    }
+
+    [Fact]
+    public void A_call_answered_elsewhere_rings_again_when_it_is_offered_under_a_new_offer()
+    {
+        var (tracker, surface) = ReadyTracker();
+
+        tracker.BackgroundCallAnswered("c1", "res-1");
+        tracker.BackgroundIncoming(RingingCall("c1"), new CallContext { Properties = new() { ["reservationId"] = "res-1" } });
+        tracker.Page(PageCall("c1"));
+
+        Assert.Empty(surface.Open); // the same, answered offer
+
+        tracker.Page(new PageIncomingCallEndedMessage("c1"));
+        tracker.BackgroundIncoming(RingingCall("c1"), new CallContext { Properties = new() { ["reservationId"] = "res-2" } });
+        tracker.Page(PageCall("c1"));
+
+        Assert.Equal(new HashSet<string> { "c1" }, surface.Open);
+    }
+
+    [Fact]
+    public void A_call_answered_elsewhere_is_forgotten_after_the_memory()
+    {
+        var now = new DateTimeOffset(2026, 11, 10, 19, 30, 0, TimeSpan.Zero);
+        var surface = new FakeSurface();
+        var tracker = new IncomingCallTracker(surface, clock: () => now);
+        tracker.PageBridgeChanged(true);
+
+        tracker.BackgroundCallAnswered("c1", null);
+        now += IncomingCallTracker.AnsweredElsewhereMemory + TimeSpan.FromSeconds(1);
+        tracker.Page(PageCall("c1"));
+
+        Assert.Equal(new HashSet<string> { "c1" }, surface.Open);
+    }
+
+    [Fact]
+    public void Answered_elsewhere_matches_a_page_call_by_the_offer_id_our_connection_heard()
+    {
+        var (tracker, surface) = ReadyTracker();
+
+        tracker.BackgroundIncoming(RingingCall("c1"), new CallContext { Properties = new() { ["reservationId"] = "res-1" } });
+        tracker.Page(PageCall("c1")); // the page's details carry no reservation id
 
         Assert.Contains("c1", surface.Open);
 
-        tracker.Page(new PageIncomingCallEndedMessage("c1"));
+        tracker.BackgroundCallAnswered("other", "res-1");
 
         Assert.Empty(surface.Open);
     }
@@ -419,6 +557,26 @@ public class IncomingCallTrackerTests
         tracker.ExpireDue(expires.AddMinutes(1));
 
         Assert.Contains("c1", surface.Open);
+    }
+
+    [Fact]
+    public void A_page_call_the_page_never_ends_expires_after_the_page_grace()
+    {
+        var (tracker, surface) = ReadyTracker();
+        var expires = new DateTimeOffset(2026, 11, 10, 19, 38, 0, TimeSpan.Zero);
+
+        tracker.BackgroundIncoming(RingingCall("c1"), new CallContext { Properties = new() { ["expiresUtc"] = expires.ToString("O") } });
+        tracker.Page(PageCall("c1"));
+
+        tracker.ExpireDue(expires + IncomingCallTracker.ExpiryGrace + TimeSpan.FromSeconds(1));
+
+        Assert.Contains("c1", surface.Open); // the page goes first
+
+        tracker.ExpireDue(expires + IncomingCallTracker.PageExpiryGrace + TimeSpan.FromMilliseconds(1));
+
+        Assert.Null(tracker.Find("c1"));
+        Assert.Empty(surface.Open);
+        Assert.Contains(("incoming-call-dismissed", (string?)"c1"), surface.Messages);
     }
 
     [Fact]
