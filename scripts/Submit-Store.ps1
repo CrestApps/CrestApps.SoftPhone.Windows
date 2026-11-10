@@ -93,8 +93,34 @@ foreach ($path in $submissionJson, $submissionZip) {
 
 $commit = -not $NoCommit
 Write-Host "Submitting the package (AutoCommit=$commit)…"
-Update-ApplicationSubmission -AppId $appId `
+$submissionId, $null = Update-ApplicationSubmission -AppId $appId `
     -SubmissionDataPath $submissionJson -PackagePath $submissionZip `
     -ReplacePackages -AutoCommit:$commit -Force -NoStatus
 
-Write-Host "Store package submission complete (AutoCommit=$commit)."
+if (-not $commit) {
+    Write-Host "Draft submission $submissionId is ready for review in Partner Center."
+    return
+}
+
+# A commit is accepted at once and processed afterwards. When processing fails, the submission falls back to a
+# draft in Partner Center although the commit call succeeded, so wait for it to leave CommitStarted and fail the
+# run, with the Store's errors, if it did not reach pre-processing or certification.
+$deadline = (Get-Date).AddMinutes(30)
+do {
+    Start-Sleep -Seconds 30
+    $status = Get-ApplicationSubmissionStatus -AppId $appId -SubmissionId $submissionId -NoStatus
+    Write-Host "Submission $submissionId status: $($status.status)"
+} while ($status.status -eq 'CommitStarted' -and (Get-Date) -lt $deadline)
+
+switch ($status.status) {
+    'CommitStarted' {
+        Write-Warning "Submission $submissionId is still committing after 30 minutes; check it in Partner Center."
+    }
+    'CommitFailed' {
+        $errors = ($status.statusDetails.errors | ForEach-Object { "$($_.code): $($_.details)" }) -join '; '
+        throw "The Store could not commit submission $submissionId. $errors Open it in Partner Center, fix the error and select 'Submit for certification'."
+    }
+    default {
+        Write-Host "Submission $submissionId is in $($status.status); certification usually takes a few hours, up to 3 business days."
+    }
+}
