@@ -62,15 +62,39 @@ if (-not $pkg) {
 if (-not $pkg) { throw "No .msixupload/.msixbundle/.msix found under $PackagePath." }
 Write-Host "Package: $($pkg.FullName)"
 
-# Package-only submission: clone the app's most recent submission, replace its packages with
-# the new build, and (unless -NoCommit) commit. -Force clears any half-finished pending
-# submission first. The listing is left exactly as it is in Partner Center.
-#
-# NOTE: this requires at least one existing submission to clone. If the app has never had a
-# submission, create (and publish) the first one in the portal — CI cannot bootstrap a listing.
+# Package-only submission. StoreBroker uploads packages in two steps:
+#   1. New-SubmissionPackage turns the MSIX into a submission payload (.json + .zip). It needs a
+#      StoreBroker config, generated here from the app's current Store configuration, and no
+#      listing (PDP) or image files, so the listing in Partner Center is left exactly as it is.
+#   2. Update-ApplicationSubmission clones the app's published submission, replaces its packages
+#      with the payload (-ReplacePackages, nothing else is touched), and commits it unless
+#      -NoCommit. -Force first removes any half-finished pending submission.
+# The app must already have a published submission to clone; the first one is made in the portal.
+$app = Get-Application -AppId $appId -NoStatus
+if ([string]::IsNullOrEmpty($app.lastPublishedApplicationSubmission.id)) {
+    throw "App $appId has no published submission yet. Create and publish the first submission in Partner Center; CI only replaces the package of an existing one."
+}
+
+$work = Join-Path ([System.IO.Path]::GetTempPath()) ("storebroker-" + [guid]::NewGuid().ToString("n"))
+New-Item -ItemType Directory -Path $work -Force | Out-Null
+$configPath = Join-Path $work 'StoreBrokerConfig.json'
+
+Write-Host "Creating the StoreBroker config from the app's Store configuration…"
+New-StoreBrokerConfigFile -Path $configPath -AppId $appId
+
+Write-Host "Building the submission payload…"
+New-SubmissionPackage -ConfigPath $configPath -AppxPath $pkg.FullName -OutPath $work -OutName 'submission'
+
+$submissionJson = Join-Path $work 'submission.json'
+$submissionZip = Join-Path $work 'submission.zip'
+foreach ($path in $submissionJson, $submissionZip) {
+    if (-not (Test-Path -PathType Leaf -Path $path)) { throw "New-SubmissionPackage did not produce $path." }
+}
+
 $commit = -not $NoCommit
+Write-Host "Submitting the package (AutoCommit=$commit)…"
 Update-ApplicationSubmission -AppId $appId `
-    -AppxPath $pkg.FullName -ReplacePackages `
-    -AutoCommit:$commit -Force
+    -SubmissionDataPath $submissionJson -PackagePath $submissionZip `
+    -ReplacePackages -AutoCommit:$commit -Force -NoStatus
 
 Write-Host "Store package submission complete (AutoCommit=$commit)."
